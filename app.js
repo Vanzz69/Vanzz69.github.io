@@ -1,12 +1,18 @@
 /**
- * MOMENTUM — Habit Tracker v3
- * app.js — Full application module
+ * MOMENTUM — app.js v4
+ * Full app with Firebase Auth + Firestore sync + offline support
  */
 
+import {
+  auth, onAuthStateChanged,
+  signInWithGoogle, signInWithEmail, signUpWithEmail, logOut,
+  saveHabitsToCloud, loadHabitsFromCloud, subscribeToHabits,
+} from './firebase.js';
+
 /* ═══════════════════════════════════════════════════════════
-   STORAGE
+   LOCAL STORAGE (offline fallback)
 ═══════════════════════════════════════════════════════════ */
-const Storage = (() => {
+const LocalStorage = (() => {
   const KEY = 'momentum_habits_v2';
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
   const save = (data) => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {} };
@@ -39,7 +45,7 @@ const DateUtils = (() => {
 ═══════════════════════════════════════════════════════════ */
 const HabitLogic = (() => {
   const getComp = (habit, date) => habit.completions.find(c => c.date === date) || null;
-  const getTodayCount   = (habit) => { const r = getComp(habit, DateUtils.today()); return r ? r.count : 0; };
+  const getTodayCount    = (habit) => { const r = getComp(habit, DateUtils.today()); return r ? r.count : 0; };
   const isDailyDoneToday = (habit) => habit.type === 'daily' && getTodayCount(habit) >= 1;
 
   const complete = (habit) => {
@@ -76,7 +82,6 @@ const HabitLogic = (() => {
     habit.currentStreak = streak;
   };
 
-  // Global metrics
   const getAuraIntensity   = (habits) => habits.reduce((s, h) => s + h.currentStreak, 0);
   const getDailyAlignment  = (habits) => {
     if (!habits.length) return 0;
@@ -89,7 +94,6 @@ const HabitLogic = (() => {
     return all.size;
   };
 
-  // Per-habit stats
   const computeStats = (habit) => {
     const totalDays = DateUtils.daysBetween(habit.createdAt, DateUtils.today()) + 1;
     const active    = new Set(habit.completions.filter(c => c.count > 0).map(c => c.date));
@@ -104,15 +108,14 @@ const HabitLogic = (() => {
     const lastWeek = habit.completions.filter(c => c.date >= lws && c.date <= lwe).reduce((s,c)=>s+c.count,0);
     const velocityPct = lastWeek === 0 ? (thisWeek > 0 ? 100 : 0) : Math.round(((thisWeek-lastWeek)/lastWeek)*100);
 
-    // Milestone ladder splits by habit type
-    const isMSDaily    = habit.type === 'daily';
-    const msValue      = isMSDaily ? active.size : total;
-    const milestones   = isMSDaily
+    const isMSDaily  = habit.type === 'daily';
+    const msValue    = isMSDaily ? active.size : total;
+    const milestones = isMSDaily
       ? [7,14,21,30,45,60,75,90,120,150,180,210,270,365]
       : [5,10,25,50,100,250,500,1000];
-    const nextMS       = milestones.find(m => m > msValue) || msValue + (isMSDaily ? 30 : 100);
-    const prevMS       = milestones.filter(m => m <= msValue).pop() || 0;
-    const msPct        = nextMS === prevMS ? 100 : Math.round(((msValue-prevMS)/(nextMS-prevMS))*100);
+    const nextMS  = milestones.find(m => m > msValue) || msValue + (isMSDaily ? 30 : 100);
+    const prevMS  = milestones.filter(m => m <= msValue).pop() || 0;
+    const msPct   = nextMS === prevMS ? 100 : Math.round(((msValue-prevMS)/(nextMS-prevMS))*100);
 
     return {
       totalCompletions: total, activeDays: active.size, totalDays,
@@ -121,11 +124,11 @@ const HabitLogic = (() => {
       currentStreak: habit.currentStreak, longestStreak: habit.longestStreak,
       hsi: Math.round(hsi*10)/10,
       thisWeek, lastWeek, velocityPct,
-      nextMilestone: nextMS, prevMilestone: prevMS, milestoneProgress: msPct, msValue, isMSDaily,
+      nextMilestone: nextMS, prevMilestone: prevMS, milestoneProgress: msPct,
+      msValue, isMSDaily,
     };
   };
 
-  // Chart data
   const getLast14Days = (habit) => Array.from({length:14},(_,i) => {
     const date = DateUtils.daysAgo(13-i), rec = getComp(habit,date);
     return { date, count: rec ? rec.count : 0 };
@@ -152,10 +155,165 @@ const HabitLogic = (() => {
    STATE
 ═══════════════════════════════════════════════════════════ */
 const state = {
-  habits: Storage.load(),
+  habits: [],
   currentView: 'habits',
   editingId: null, deletingId: null, selectedHabitId: null,
   charts: {},
+  user: null,          // Firebase user object
+  isOfflineMode: false, // true if using without account
+  unsubscribeSync: null, // Firestore listener cleanup
+};
+
+/* ═══════════════════════════════════════════════════════════
+   SYNC
+═══════════════════════════════════════════════════════════ */
+let syncTimeout = null;
+
+const saveHabits = async () => {
+  // Always save locally first (instant, works offline)
+  LocalStorage.save(state.habits);
+
+  // Then save to cloud if logged in
+  if (state.user && !state.isOfflineMode) {
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(async () => {
+      showSyncToast('Syncing…');
+      await saveHabitsToCloud(state.user.uid, state.habits);
+      showSyncToast('Synced ✓', true);
+    }, 1000); // debounce 1s
+  }
+};
+
+const showSyncToast = (msg, success = false) => {
+  const toast = document.getElementById('syncToast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.className = 'sync-toast show' + (success ? ' success' : '');
+  if (success) setTimeout(() => toast.classList.remove('show'), 2000);
+};
+
+/* ═══════════════════════════════════════════════════════════
+   AUTH SCREEN
+═══════════════════════════════════════════════════════════ */
+const showAuthScreen = () => {
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+};
+
+const showApp = () => {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+};
+
+const initAuthEvents = () => {
+  const authError = document.getElementById('authError');
+
+  const setError = (msg) => { authError.textContent = msg; };
+  const clearError = () => { authError.textContent = ''; };
+
+  document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+    clearError();
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      setError('Google sign-in failed. Try again.');
+    }
+  });
+
+  document.getElementById('loginBtn').addEventListener('click', async () => {
+    clearError();
+    const email    = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) { setError('Please enter email and password.'); return; }
+    try {
+      await signInWithEmail(email, password);
+    } catch (err) {
+      setError(err.code === 'auth/invalid-credential' ? 'Wrong email or password.' : err.message);
+    }
+  });
+
+  document.getElementById('signupBtn').addEventListener('click', async () => {
+    clearError();
+    const email    = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) { setError('Please enter email and password.'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    try {
+      await signUpWithEmail(email, password);
+    } catch (err) {
+      setError(err.code === 'auth/email-already-in-use' ? 'Email already in use. Try logging in.' : err.message);
+    }
+  });
+
+  document.getElementById('offlineBtn').addEventListener('click', () => {
+    state.isOfflineMode = true;
+    state.habits = LocalStorage.load();
+    state.habits.forEach(h => HabitLogic.recalcStreaks(h));
+    showApp();
+    initAppUI();
+    renderHabitsView();
+  });
+
+  document.getElementById('signOutBtn').addEventListener('click', async () => {
+    if (state.unsubscribeSync) state.unsubscribeSync();
+    await logOut();
+    state.user = null;
+    state.habits = [];
+    state.isOfflineMode = false;
+    showAuthScreen();
+  });
+};
+
+/* ═══════════════════════════════════════════════════════════
+   ON AUTH STATE CHANGE
+═══════════════════════════════════════════════════════════ */
+const handleAuthStateChange = async (user) => {
+  if (user) {
+    state.user = user;
+    state.isOfflineMode = false;
+
+    // Update user info in sidebar
+    const userInfo = document.getElementById('userInfo');
+    if (userInfo) {
+      userInfo.innerHTML = `
+        <img src="${user.photoURL || ''}" class="user-avatar" onerror="this.style.display='none'" />
+        <span class="user-name">${user.displayName || user.email}</span>
+      `;
+    }
+
+    // Load from cloud first, fallback to local
+    showSyncToast('Loading your data…');
+    const cloudHabits = await loadHabitsFromCloud(user.uid);
+    if (cloudHabits !== null) {
+      state.habits = cloudHabits;
+      LocalStorage.save(state.habits); // cache locally
+    } else {
+      // First time login — migrate local data to cloud
+      state.habits = LocalStorage.load();
+      if (state.habits.length > 0) await saveHabitsToCloud(user.uid, state.habits);
+    }
+
+    state.habits.forEach(h => HabitLogic.recalcStreaks(h));
+    showSyncToast('Synced ✓', true);
+
+    // Subscribe to real-time updates (cross-device sync)
+    if (state.unsubscribeSync) state.unsubscribeSync();
+    state.unsubscribeSync = subscribeToHabits(user.uid, (habits) => {
+      state.habits = habits;
+      state.habits.forEach(h => HabitLogic.recalcStreaks(h));
+      LocalStorage.save(state.habits);
+      renderHabitsView();
+      if (state.currentView === 'dashboard') renderDashboard();
+    });
+
+    showApp();
+    initAppUI();
+    renderHabitsView();
+
+  } else {
+    // Not logged in — show auth screen
+    showAuthScreen();
+  }
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -178,7 +336,6 @@ const renderHabitCard = (habit) => {
   const doneTodayFlag = HabitLogic.isDailyDoneToday(habit);
   const hasToday      = todayCount > 0;
 
-  // Weekly dots: last 7 days
   const dots = Array.from({length:7},(_,i) => {
     const date = DateUtils.daysAgo(6-i);
     const rec  = habit.completions.find(c => c.date === date);
@@ -294,18 +451,14 @@ const renderDashboardStats = () => {
   const s = HabitLogic.computeStats(habit);
 
   $('statsGrid').innerHTML = `
-    <!-- MILESTONE -->
     <div class="stat-card stat-card--milestone">
       <div class="milestone-header">
         <div>
           <div class="milestone-title">🏆 Milestone Tracker</div>
           <div class="milestone-sub">
-            ${s.isMSDaily
-              ? `<strong>${s.msValue} days</strong> completed`
-              : `<strong>${s.msValue} logs</strong> total`
-            } ·
+            ${s.isMSDaily ? `<strong>${s.msValue} days</strong> completed` : `<strong>${s.msValue} logs</strong> total`} ·
             <span class="milestone-next">
-              ${s.nextMilestone - s.msValue} ${s.isMSDaily ? 'days' : 'logs'} away from
+              ${s.nextMilestone - s.msValue} ${s.isMSDaily?'days':'logs'} away from
               <strong>${s.nextMilestone}</strong> ${milestoneBadge(s.nextMilestone, s.isMSDaily)}
             </span>
           </div>
@@ -320,12 +473,10 @@ const renderDashboardStats = () => {
         <span class="milestone-pct">${s.milestoneProgress}%</span>
       </div>
       <div class="milestone-labels">
-        <span>${s.prevMilestone} ${s.isMSDaily ? 'days' : 'logs'}</span>
-        <span>${s.nextMilestone} ${s.isMSDaily ? 'days' : 'logs'}</span>
+        <span>${s.prevMilestone} ${s.isMSDaily?'days':'logs'}</span>
+        <span>${s.nextMilestone} ${s.isMSDaily?'days':'logs'}</span>
       </div>
     </div>
-
-    <!-- STRENGTH INDEX -->
     <div class="stat-card">
       <div class="stat-card__accent stat-card__accent--purple">◈</div>
       <div class="stat-card__value">${s.hsi}</div>
@@ -333,8 +484,6 @@ const renderDashboardStats = () => {
       <div class="stat-card__sub">Consistency · Streak · Volume</div>
       <div class="mini-bar"><div class="mini-fill mini-fill--purple" style="width:${s.hsi}%"></div></div>
     </div>
-
-    <!-- CURRENT STREAK -->
     <div class="stat-card">
       <div class="stat-card__accent stat-card__accent--amber">🔥</div>
       <div class="stat-card__value">${s.currentStreak}</div>
@@ -346,8 +495,6 @@ const renderDashboardStats = () => {
         </div>
       </div>
     </div>
-
-    <!-- VELOCITY -->
     <div class="stat-card">
       <div class="stat-card__accent ${s.velocityPct>=0?'stat-card__accent--green':'stat-card__accent--red'}">
         ${s.velocityPct>=0?'↑':'↓'}
@@ -360,26 +507,20 @@ const renderDashboardStats = () => {
     </div>
   `;
 
-  renderCharts(habit, s);
+  renderCharts(habit);
 };
 
 /* ═══════════════════════════════════════════════════════════
    CHARTS
 ═══════════════════════════════════════════════════════════ */
 const C = {
-  accent:'#7c6bff', accent2:'#c084fc', green:'#34d399',
-  amber:'#fbbf24',  red:'#f87171',     blue:'#60a5fa',
+  accent:'#7c6bff', green:'#34d399', amber:'#fbbf24', red:'#f87171', blue:'#60a5fa',
   grid:'rgba(255,255,255,0.05)', text:'#6b6890',
 };
-
-const destroyCharts = () => {
-  Object.values(state.charts).forEach(c => { try { c.destroy(); } catch {} });
-  state.charts = {};
-};
-
+const destroyCharts = () => { Object.values(state.charts).forEach(c => { try { c.destroy(); } catch {} }); state.charts = {}; };
 const baseScales = () => ({
-  x: { grid:{color:C.grid}, ticks:{color:C.text, font:{family:'DM Sans',size:11}} },
-  y: { grid:{color:C.grid}, ticks:{color:C.text, font:{family:'DM Sans',size:11}}, beginAtZero:true },
+  x: { grid:{color:C.grid}, ticks:{color:C.text,font:{family:'DM Sans',size:11}} },
+  y: { grid:{color:C.grid}, ticks:{color:C.text,font:{family:'DM Sans',size:11}}, beginAtZero:true },
 });
 
 const renderCharts = (habit) => {
@@ -387,110 +528,70 @@ const renderCharts = (habit) => {
   const last14  = HabitLogic.getLast14Days(habit);
   const last30  = HabitLogic.getLast30Days(habit);
   const allTime = HabitLogic.getAllTimeTrend(habit);
-
   renderHeatmap(last30);
 
-  /* ── SUCCESS RATE (line) ── */
   const srCtx = $('successRateChart').getContext('2d');
   const srGrad = srCtx.createLinearGradient(0,0,0,180);
   srGrad.addColorStop(0,'rgba(124,107,255,0.3)'); srGrad.addColorStop(1,'rgba(124,107,255,0)');
   const srData = last14.map(d => d.count > 0 ? 100 : 0);
   state.charts.sr = new Chart(srCtx, {
-    type: 'line',
-    data: {
-      labels: last14.map(d => DateUtils.formatShort(d.date)),
-      datasets: [{
-        data: srData, borderColor: C.accent, backgroundColor: srGrad,
-        borderWidth: 2.5, tension: 0.35, fill: true,
-        pointRadius: 4,
-        pointBackgroundColor: srData.map(v => v===100 ? C.green : 'rgba(248,113,113,0.7)'),
-      }]
-    },
-    options: {
-      responsive: true, plugins:{legend:{display:false}},
-      scales: { ...baseScales(), y:{ ...baseScales().y, max:100, ticks:{...baseScales().y.ticks, callback:v=>v+'%'} } },
-      animation:{duration:600}
-    }
+    type:'line',
+    data:{ labels:last14.map(d=>DateUtils.formatShort(d.date)), datasets:[{
+      data:srData, borderColor:C.accent, backgroundColor:srGrad,
+      borderWidth:2.5, tension:0.35, fill:true, pointRadius:4,
+      pointBackgroundColor:srData.map(v=>v===100?C.green:'rgba(248,113,113,0.7)'),
+    }]},
+    options:{ responsive:true, plugins:{legend:{display:false}},
+      scales:{...baseScales(),y:{...baseScales().y,max:100,ticks:{...baseScales().y.ticks,callback:v=>v+'%'}}},
+      animation:{duration:600} }
   });
 
-  /* ── WEEKLY COMPARISON (grouped bar) ── */
-  const buildWeekDays = (offset) => Array.from({length:7},(_,i) => {
-    const base = new Date(DateUtils.startOfWeek(offset)+'T00:00:00');
-    base.setDate(base.getDate()+i);
+  const buildWeekDays = (offset) => Array.from({length:7},(_,i)=>{
+    const base = new Date(DateUtils.startOfWeek(offset)+'T00:00:00'); base.setDate(base.getDate()+i);
     const ds = base.toISOString().split('T')[0];
-    const rec = habit.completions.find(c=>c.date===ds);
-    return rec ? rec.count : 0;
+    const rec = habit.completions.find(c=>c.date===ds); return rec ? rec.count : 0;
   });
   const wkCtx = $('weekCompChart').getContext('2d');
   state.charts.wk = new Chart(wkCtx, {
-    type: 'bar',
-    data: {
-      labels: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
-      datasets: [
-        { label:'This week', data:buildWeekDays(0), backgroundColor:'rgba(124,107,255,0.75)', borderRadius:5, borderSkipped:false },
-        { label:'Last week',  data:buildWeekDays(1), backgroundColor:'rgba(96,165,250,0.4)',   borderRadius:5, borderSkipped:false },
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins:{ legend:{ display:true, labels:{color:C.text,font:{family:'DM Sans',size:11},boxWidth:12} } },
-      scales: baseScales(), animation:{duration:700}
-    }
+    type:'bar',
+    data:{ labels:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], datasets:[
+      {label:'This week', data:buildWeekDays(0), backgroundColor:'rgba(124,107,255,0.75)', borderRadius:5, borderSkipped:false},
+      {label:'Last week',  data:buildWeekDays(1), backgroundColor:'rgba(96,165,250,0.4)',   borderRadius:5, borderSkipped:false},
+    ]},
+    options:{ responsive:true, plugins:{legend:{display:true,labels:{color:C.text,font:{family:'DM Sans',size:11},boxWidth:12}}},
+      scales:baseScales(), animation:{duration:700} }
   });
 
-  /* ── ALL-TIME TREND (line) ── */
   const atCtx = $('allTimeTrendChart').getContext('2d');
   const atGrad = atCtx.createLinearGradient(0,0,0,200);
   atGrad.addColorStop(0,'rgba(52,211,153,0.35)'); atGrad.addColorStop(1,'rgba(52,211,153,0)');
-  const atLabels = allTime.map(d => DateUtils.formatShort(d.date));
-  const atData   = allTime.map(d => d.total);
   state.charts.at = new Chart(atCtx, {
-    type: 'line',
-    data: {
-      labels: atLabels.length ? atLabels : ['–'],
-      datasets: [{
-        data: atData.length ? atData : [0],
-        borderColor: C.green, backgroundColor: atGrad,
-        borderWidth: 2.5, tension: 0.4, fill: true,
-        pointRadius: atData.length > 30 ? 0 : 3,
-        pointBackgroundColor: C.green,
-      }]
-    },
-    options: { responsive:true, plugins:{legend:{display:false}}, scales:baseScales(), animation:{duration:800} }
+    type:'line',
+    data:{ labels:allTime.length?allTime.map(d=>DateUtils.formatShort(d.date)):['–'],
+      datasets:[{ data:allTime.length?allTime.map(d=>d.total):[0],
+        borderColor:C.green, backgroundColor:atGrad, borderWidth:2.5, tension:0.4, fill:true,
+        pointRadius:allTime.length>30?0:3, pointBackgroundColor:C.green }]},
+    options:{ responsive:true, plugins:{legend:{display:false}}, scales:baseScales(), animation:{duration:800} }
   });
 };
 
-/* ── HEATMAP (vanilla canvas) ─────────────────────────── */
 const renderHeatmap = (last30) => {
-  const canvas = $('heatmapCanvas');
-  if (!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const COLS = 10, ROWS = 3;
-  const containerW = canvas.parentElement.clientWidth - 32;
-  const cell = Math.floor((containerW - (COLS-1)*4) / COLS);
-  const gap  = 4;
-  const W = COLS*(cell+gap)-gap, H = ROWS*(cell+gap)-gap;
-
-  canvas.width  = W*dpr; canvas.height = H*dpr;
-  canvas.style.width = W+'px'; canvas.style.height = H+'px';
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const maxCount = Math.max(...last30.map(d=>d.count), 1);
-
-  last30.forEach((d,i) => {
-    const col = i%COLS, row = Math.floor(i/COLS);
-    const x = col*(cell+gap), y = row*(cell+gap);
-    ctx.fillStyle = 'rgba(255,255,255,0.04)';
-    ctx.beginPath(); ctx.roundRect(x,y,cell,cell,4); ctx.fill();
-    if (d.count > 0) {
-      const intensity = d.count/maxCount;
-      ctx.fillStyle = `rgba(124,107,255,${0.2+intensity*0.8})`;
-      ctx.beginPath(); ctx.roundRect(x,y,cell,cell,4); ctx.fill();
-      if (intensity > 0.5) {
-        ctx.fillStyle = `rgba(192,132,252,${intensity*0.5})`;
-        ctx.beginPath(); ctx.roundRect(x+2,y+2,cell-4,cell-4,3); ctx.fill();
-      }
+  const canvas = $('heatmapCanvas'); if (!canvas) return;
+  const dpr=window.devicePixelRatio||1, COLS=10, ROWS=3;
+  const containerW=canvas.parentElement.clientWidth-32;
+  const cell=Math.floor((containerW-(COLS-1)*4)/COLS), gap=4;
+  const W=COLS*(cell+gap)-gap, H=ROWS*(cell+gap)-gap;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const maxCount=Math.max(...last30.map(d=>d.count),1);
+  last30.forEach((d,i)=>{
+    const col=i%COLS,row=Math.floor(i/COLS),x=col*(cell+gap),y=row*(cell+gap);
+    ctx.fillStyle='rgba(255,255,255,0.04)'; ctx.beginPath(); ctx.roundRect(x,y,cell,cell,4); ctx.fill();
+    if(d.count>0){
+      const intensity=d.count/maxCount;
+      ctx.fillStyle=`rgba(124,107,255,${0.2+intensity*0.8})`; ctx.beginPath(); ctx.roundRect(x,y,cell,cell,4); ctx.fill();
+      if(intensity>0.5){ctx.fillStyle=`rgba(192,132,252,${intensity*0.5})`; ctx.beginPath(); ctx.roundRect(x+2,y+2,cell-4,cell-4,3); ctx.fill();}
     }
   });
 };
@@ -502,49 +603,43 @@ const switchView = (view) => {
   state.currentView = view;
   $('habitsView').classList.toggle('hidden', view!=='habits');
   $('dashboardView').classList.toggle('hidden', view!=='dashboard');
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view===view));
-  $('topbarTitle').textContent = view==='habits' ? "Today's Habits" : 'Dashboard';
-  $('addHabitBtn').hidden = view !== 'habits';
-  if (view==='dashboard') renderDashboard();
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  $('topbarTitle').textContent = view==='habits'?"Today's Habits":'Dashboard';
+  $('addHabitBtn').hidden = view!=='habits';
+  if(view==='dashboard') renderDashboard();
   closeSidebar();
 };
 
 /* ═══════════════════════════════════════════════════════════
    SIDEBAR
 ═══════════════════════════════════════════════════════════ */
-let overlay = null;
-const openSidebar  = () => {
+let overlay=null;
+const openSidebar=()=>{
   $('sidebar').classList.add('open');
-  if (!overlay) { overlay = document.createElement('div'); overlay.className='sidebar-overlay'; document.body.appendChild(overlay); overlay.addEventListener('click',closeSidebar); }
+  if(!overlay){overlay=document.createElement('div');overlay.className='sidebar-overlay';document.body.appendChild(overlay);overlay.addEventListener('click',closeSidebar);}
   overlay.classList.add('active');
 };
-const closeSidebar = () => { $('sidebar').classList.remove('open'); if(overlay) overlay.classList.remove('active'); };
+const closeSidebar=()=>{ $('sidebar').classList.remove('open'); if(overlay) overlay.classList.remove('active'); };
 
 /* ═══════════════════════════════════════════════════════════
    HABIT MODAL
 ═══════════════════════════════════════════════════════════ */
-let selectedType = 'daily';
-const openAddModal = () => {
+let selectedType='daily';
+const openAddModal=()=>{
   state.editingId=null; selectedType='daily';
   $('modalTitle').textContent='New Habit'; $('modalSave').textContent='Create Habit';
   $('habitName').value=''; $('habitGoal').value='';
-  setTypeActive('daily'); showModal('habitModal');
-  setTimeout(()=>$('habitName').focus(),50);
+  setTypeActive('daily'); showModal('habitModal'); setTimeout(()=>$('habitName').focus(),50);
 };
-const openEditModal = (id) => {
-  const h = state.habits.find(h=>h.id===id); if(!h) return;
+const openEditModal=(id)=>{
+  const h=state.habits.find(h=>h.id===id); if(!h) return;
   state.editingId=id; selectedType=h.type;
   $('modalTitle').textContent='Edit Habit'; $('modalSave').textContent='Save Changes';
   $('habitName').value=h.name; $('habitGoal').value=h.goal;
-  setTypeActive(h.type); showModal('habitModal');
-  setTimeout(()=>$('habitName').focus(),50);
+  setTypeActive(h.type); showModal('habitModal'); setTimeout(()=>$('habitName').focus(),50);
 };
-const setTypeActive = (type) => {
-  selectedType=type;
-  $('typeDaily').classList.toggle('active',type==='daily');
-  $('typeFlexible').classList.toggle('active',type==='flexible');
-};
-const saveHabit = () => {
+const setTypeActive=(type)=>{ selectedType=type; $('typeDaily').classList.toggle('active',type==='daily'); $('typeFlexible').classList.toggle('active',type==='flexible'); };
+const saveHabit=async()=>{
   const name=($('habitName').value||'').trim(), goal=parseInt($('habitGoal').value,10);
   let ok=true;
   if(!name){$('habitName').classList.add('error');ok=false;}else $('habitName').classList.remove('error');
@@ -556,40 +651,35 @@ const saveHabit = () => {
   } else {
     state.habits.push({id:crypto.randomUUID(),name,goal,type:selectedType,createdAt:DateUtils.today(),completions:[],currentStreak:0,longestStreak:0});
   }
-  Storage.save(state.habits); hideModal('habitModal'); renderHabitsView();
+  await saveHabits(); hideModal('habitModal'); renderHabitsView();
 };
 
 /* ═══════════════════════════════════════════════════════════
    DELETE MODAL
 ═══════════════════════════════════════════════════════════ */
-const openDeleteModal = (id) => {
-  const h=state.habits.find(h=>h.id===id); if(!h) return;
-  state.deletingId=id; $('deleteHabitName').textContent=h.name; showModal('deleteModal');
-};
-const confirmDelete = () => {
+const openDeleteModal=(id)=>{ const h=state.habits.find(h=>h.id===id); if(!h) return; state.deletingId=id; $('deleteHabitName').textContent=h.name; showModal('deleteModal'); };
+const confirmDelete=async()=>{
   state.habits=state.habits.filter(h=>h.id!==state.deletingId);
   if(state.selectedHabitId===state.deletingId) state.selectedHabitId=null;
-  Storage.save(state.habits); hideModal('deleteModal'); renderHabitsView();
+  await saveHabits(); hideModal('deleteModal'); renderHabitsView();
   if(state.currentView==='dashboard') renderDashboard();
 };
 
 /* ═══════════════════════════════════════════════════════════
    COMPLETE / UNDO
 ═══════════════════════════════════════════════════════════ */
-const completeHabit = (id) => {
-  const h=state.habits.find(h=>h.id===id); if(!h) return;
-  HabitLogic.complete(h); Storage.save(state.habits); renderHabitsView();
-};
-const undoHabit = (id) => {
-  const h=state.habits.find(h=>h.id===id); if(!h) return;
-  HabitLogic.undo(h); Storage.save(state.habits); renderHabitsView();
-};
+const completeHabit=async(id)=>{ const h=state.habits.find(h=>h.id===id); if(!h) return; HabitLogic.complete(h); await saveHabits(); renderHabitsView(); };
+const undoHabit=async(id)=>{ const h=state.habits.find(h=>h.id===id); if(!h) return; HabitLogic.undo(h); await saveHabits(); renderHabitsView(); };
 
 /* ═══════════════════════════════════════════════════════════
-   EVENTS
+   APP UI EVENTS (called after login)
 ═══════════════════════════════════════════════════════════ */
-const initEvents = () => {
-  document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click',()=>switchView(b.dataset.view)));
+let appUIInited = false;
+const initAppUI = () => {
+  if (appUIInited) return;
+  appUIInited = true;
+
+  document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
   $('addHabitBtn').addEventListener('click',openAddModal);
   $('emptyAddBtn').addEventListener('click',openAddModal);
   $('menuBtn').addEventListener('click',openSidebar);
@@ -620,17 +710,19 @@ const initEvents = () => {
       if(h) renderHeatmap(HabitLogic.getLast30Days(h));
     }
   });
+
+  $('sidebarDate').textContent = DateUtils.formatFull();
 };
 
 /* ═══════════════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════════════ */
 const init = () => {
-  state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
-  Storage.save(state.habits);
-  $('sidebarDate').textContent = DateUtils.formatFull();
-  initEvents();
-  renderHabitsView();
+  initAuthEvents();
+
+  // Listen for auth state (handles auto-login on return visits)
+  onAuthStateChanged(auth, handleAuthStateChange);
+
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
 };
