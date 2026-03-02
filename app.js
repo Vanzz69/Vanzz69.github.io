@@ -104,10 +104,15 @@ const HabitLogic = (() => {
     const lastWeek = habit.completions.filter(c => c.date >= lws && c.date <= lwe).reduce((s,c)=>s+c.count,0);
     const velocityPct = lastWeek === 0 ? (thisWeek > 0 ? 100 : 0) : Math.round(((thisWeek-lastWeek)/lastWeek)*100);
 
-    const milestones   = [5,10,25,50,100,250,500,1000];
-    const nextMS       = milestones.find(m => m > total) || total + 100;
-    const prevMS       = milestones.filter(m => m <= total).pop() || 0;
-    const msPct        = nextMS === prevMS ? 100 : Math.round(((total-prevMS)/(nextMS-prevMS))*100);
+    // Milestone ladder splits by habit type
+    const isMSDaily    = habit.type === 'daily';
+    const msValue      = isMSDaily ? active.size : total;
+    const milestones   = isMSDaily
+      ? [7,14,21,30,45,60,75,90,120,150,180,210,270,365]
+      : [5,10,25,50,100,250,500,1000];
+    const nextMS       = milestones.find(m => m > msValue) || msValue + (isMSDaily ? 30 : 100);
+    const prevMS       = milestones.filter(m => m <= msValue).pop() || 0;
+    const msPct        = nextMS === prevMS ? 100 : Math.round(((msValue-prevMS)/(nextMS-prevMS))*100);
 
     return {
       totalCompletions: total, activeDays: active.size, totalDays,
@@ -116,7 +121,7 @@ const HabitLogic = (() => {
       currentStreak: habit.currentStreak, longestStreak: habit.longestStreak,
       hsi: Math.round(hsi*10)/10,
       thisWeek, lastWeek, velocityPct,
-      nextMilestone: nextMS, prevMilestone: prevMS, milestoneProgress: msPct,
+      nextMilestone: nextMS, prevMilestone: prevMS, milestoneProgress: msPct, msValue, isMSDaily,
     };
   };
 
@@ -277,7 +282,10 @@ const renderDashboard = () => {
   renderDashboardStats();
 };
 
-const milestoneBadge = (n) => n<=10?'🌱':n<=25?'⭐':n<=50?'🔥':n<=100?'💎':n<=250?'🏆':n<=500?'👑':'🌟';
+const milestoneBadge = (n, isDaily=false) => {
+  if (isDaily) return n<=14?'🌱':n<=30?'⭐':n<=60?'🔥':n<=90?'💎':n<=180?'🏆':n<=270?'👑':'🌟';
+  return n<=10?'🌱':n<=25?'⭐':n<=50?'🔥':n<=100?'💎':n<=250?'🏆':n<=500?'👑':'🌟';
+};
 
 const renderDashboardStats = () => {
   const habit = state.habits.find(h => h.id === state.selectedHabitId);
@@ -292,13 +300,18 @@ const renderDashboardStats = () => {
         <div>
           <div class="milestone-title">🏆 Milestone Tracker</div>
           <div class="milestone-sub">
-            <strong>${s.totalCompletions}</strong> logs ·
-            <span class="milestone-next">${s.nextMilestone - s.totalCompletions} away from
-              <strong>${s.nextMilestone}</strong> ${milestoneBadge(s.nextMilestone)}
+            ${s.isMSDaily
+              ? `<strong>${s.msValue} days</strong> completed`
+              : `<strong>${s.msValue} logs</strong> total`
+            } ·
+            <span class="milestone-next">
+              ${s.nextMilestone - s.msValue} ${s.isMSDaily ? 'days' : 'logs'} away from
+              <strong>${s.nextMilestone}</strong> ${milestoneBadge(s.nextMilestone, s.isMSDaily)}
             </span>
           </div>
+          <div class="milestone-type-tag">${s.isMSDaily ? '📅 Consistency milestones' : '📊 Volume milestones'}</div>
         </div>
-        <div class="milestone-badge-icon">${milestoneBadge(s.nextMilestone)}</div>
+        <div class="milestone-badge-icon">${milestoneBadge(s.nextMilestone, s.isMSDaily)}</div>
       </div>
       <div class="milestone-bar-wrap">
         <div class="milestone-bar">
@@ -307,8 +320,8 @@ const renderDashboardStats = () => {
         <span class="milestone-pct">${s.milestoneProgress}%</span>
       </div>
       <div class="milestone-labels">
-        <span>${s.prevMilestone}</span>
-        <span>${s.nextMilestone}</span>
+        <span>${s.prevMilestone} ${s.isMSDaily ? 'days' : 'logs'}</span>
+        <span>${s.nextMilestone} ${s.isMSDaily ? 'days' : 'logs'}</span>
       </div>
     </div>
 
