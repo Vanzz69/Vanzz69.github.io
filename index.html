@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="description" content="Momentum — A premium habit tracker PWA" />
+  <title>Momentum · Habit Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- NOISE OVERLAY -->
+  <div class="noise-overlay"></div>
+
+  <!-- APP SHELL -->
+  <div id="app" class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">◈</span>
+          <span class="logo-text">momentum</span>
+        </div>
+        <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">✕</button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="habits" id="navHabits">
+          <span class="nav-icon">⬡</span>
+          <span>Habits</span>
+        </button>
+        <button class="nav-item" data-view="dashboard" id="navDashboard">
+          <span class="nav-icon">◎</span>
+          <span>Dashboard</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <p class="sidebar-date" id="sidebarDate"></p>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main" id="main">
+
+      <!-- TOP BAR -->
+      <header class="topbar">
+        <button class="menu-btn" id="menuBtn" aria-label="Open menu">
+          <span></span><span></span><span></span>
+        </button>
+        <h1 class="topbar-title" id="topbarTitle">Today's Habits</h1>
+        <button class="add-btn" id="addHabitBtn" aria-label="Add habit">
+          <span>+</span>
+        </button>
+      </header>
+
+      <!-- HABITS VIEW -->
+      <section class="view" id="habitsView">
+        <div class="summary-strip" id="summaryStrip"></div>
+        <div class="habits-list" id="habitsList"></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-icon">◈</div>
+          <h2>No habits yet</h2>
+          <p>Start building momentum by adding your first habit.</p>
+          <button class="btn-primary" id="emptyAddBtn">Add a Habit</button>
+        </div>
+      </section>
+
+      <!-- DASHBOARD VIEW -->
+      <section class="view hidden" id="dashboardView">
+        <div class="dashboard-select-wrap" id="dashboardSelectWrap">
+          <label class="select-label">Select a habit to analyze</label>
+          <div class="custom-select-wrap">
+            <select class="custom-select" id="dashboardSelect"></select>
+          </div>
+        </div>
+        <div class="dashboard-content" id="dashboardContent" hidden>
+          <div class="stats-grid" id="statsGrid"></div>
+          <div class="charts-grid" id="chartsGrid">
+            <div class="chart-card">
+              <h3 class="chart-title">Last 14 Days</h3>
+              <canvas id="barChart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Trend</h3>
+              <canvas id="lineChart"></canvas>
+            </div>
+            <div class="chart-card chart-card--wide">
+              <h3 class="chart-title">Weekly Frequency</h3>
+              <canvas id="weekChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="empty-state" id="dashboardEmpty" hidden>
+          <div class="empty-icon">◎</div>
+          <h2>No habits to analyze</h2>
+          <p>Add some habits first to see your analytics.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL BACKDROP -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden></div>
+
+  <!-- ADD / EDIT HABIT MODAL -->
+  <div class="modal" id="habitModal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header">
+      <h2 id="modalTitle">New Habit</h2>
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="habitName">Name</label>
+        <input type="text" id="habitName" placeholder="e.g. Morning run" maxlength="50" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="habitGoal">Goal <span class="label-hint">(total target completions)</span></label>
+        <input type="number" id="habitGoal" placeholder="e.g. 30" min="1" max="9999" />
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <div class="type-toggle">
+          <button class="type-btn active" data-type="daily" id="typeDaily">
+            <span class="type-icon">◈</span>
+            <span class="type-label">Daily</span>
+            <span class="type-desc">Once per day</span>
+          </button>
+          <button class="type-btn" data-type="flexible" id="typeFlexible">
+            <span class="type-icon">◉</span>
+            <span class="type-label">Flexible</span>
+            <span class="type-desc">Multiple per day</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="modalCancel">Cancel</button>
+      <button class="btn-primary" id="modalSave">Create Habit</button>
+    </div>
+  </div>
+
+  <!-- DELETE CONFIRM MODAL -->
+  <div class="modal modal--sm" id="deleteModal" hidden role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>Delete Habit</h2>
+      <button class="modal-close" id="deleteModalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="delete-msg">Are you sure you want to delete <strong id="deleteHabitName"></strong>? All data will be lost.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="deleteCancelBtn">Cancel</button>
+      <button class="btn-danger" id="deleteConfirmBtn">Delete</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
