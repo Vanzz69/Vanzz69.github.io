@@ -10,6 +10,8 @@ import {
   signInWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
   signOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -35,31 +37,32 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// Enable offline persistence (works even without internet)
 enableIndexedDbPersistence(db).catch(() => {});
 
-/* ── AUTH METHODS ── */
-const signInWithGoogle = () => {
-  const provider = new GoogleAuthProvider();
-  return signInWithPopup(auth, provider);
-};
+/* ── AUTH ── */
+const signInWithGoogle = () => signInWithPopup(auth, new GoogleAuthProvider());
 
 const signInWithEmail = (email, password) =>
   signInWithEmailAndPassword(auth, email, password);
 
-const signUpWithEmail = (email, password) =>
-  createUserWithEmailAndPassword(auth, email, password);
+const signUpWithEmail = async (email, password, name) => {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  if (name) await updateProfile(cred.user, { displayName: name });
+  return cred;
+};
+
+const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 const logOut = () => signOut(auth);
 
-/* ── FIRESTORE SYNC ── */
+/* ── FIRESTORE ── */
 const getUserDocRef = (uid) => doc(db, 'users', uid, 'data', 'habits');
 
 const saveHabitsToCloud = async (uid, habits) => {
   try {
     await setDoc(getUserDocRef(uid), { habits, updatedAt: Date.now() });
   } catch (err) {
-    console.warn('Cloud save failed (offline?):', err);
+    console.warn('Cloud save failed:', err);
   }
 };
 
@@ -67,22 +70,20 @@ const loadHabitsFromCloud = async (uid) => {
   try {
     const snap = await getDoc(getUserDocRef(uid));
     if (snap.exists()) return snap.data().habits || [];
-    return null; // no cloud data yet
+    return null;
   } catch (err) {
-    console.warn('Cloud load failed (offline?):', err);
+    console.warn('Cloud load failed:', err);
     return null;
   }
 };
 
-// Real-time listener — calls callback whenever cloud data changes
 const subscribeToHabits = (uid, callback) =>
   onSnapshot(getUserDocRef(uid), (snap) => {
     if (snap.exists()) callback(snap.data().habits || []);
   });
 
 export {
-  auth, db,
-  onAuthStateChanged,
-  signInWithGoogle, signInWithEmail, signUpWithEmail, logOut,
+  auth, onAuthStateChanged,
+  signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, logOut,
   saveHabitsToCloud, loadHabitsFromCloud, subscribeToHabits,
 };
