@@ -14,61 +14,143 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-
   <div class="noise-overlay"></div>
 
-  <!-- AUTH SCREEN -->
-  <div id="authScreen" class="auth-screen hidden">
+  <!-- ═══════ GLOBAL LOADER ═══════ -->
+  <div id="globalLoader" class="global-loader">
+    <div class="loader-logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">momentum</span>
+    </div>
+    <div class="loader-spinner"></div>
+  </div>
+
+  <!-- ═══════ ONBOARDING ═══════ -->
+  <div id="onboarding" class="onboarding hidden">
+    <div class="onboarding-card">
+      <div class="onboarding-steps">
+        <div class="onboarding-step active" data-step="0">
+          <div class="onboarding-emoji">◈</div>
+          <h2>Welcome to Momentum</h2>
+          <p>Your personal system for building habits that actually stick — with real analytics, streaks, and cross-device sync.</p>
+        </div>
+        <div class="onboarding-step" data-step="1">
+          <div class="onboarding-emoji">🔥</div>
+          <h2>Track Your Streaks</h2>
+          <p>Log daily habits with one tap. Your Aura Intensity score grows with every streak you maintain across all habits.</p>
+        </div>
+        <div class="onboarding-step" data-step="2">
+          <div class="onboarding-emoji">◎</div>
+          <h2>See Your Progress</h2>
+          <p>The dashboard shows heatmaps, velocity trends, milestone badges, and strength scores — so you always know where you stand.</p>
+        </div>
+        <div class="onboarding-step" data-step="3">
+          <div class="onboarding-emoji">🏆</div>
+          <h2>You're Ready</h2>
+          <p>Add your first habit and start building momentum. Your data syncs across every device automatically.</p>
+        </div>
+      </div>
+      <div class="onboarding-dots">
+        <span class="ob-dot active" data-dot="0"></span>
+        <span class="ob-dot" data-dot="1"></span>
+        <span class="ob-dot" data-dot="2"></span>
+        <span class="ob-dot" data-dot="3"></span>
+      </div>
+      <div class="onboarding-footer">
+        <button class="btn-ghost" id="obSkipBtn">Skip</button>
+        <button class="btn-primary" id="obNextBtn">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ AUTH SCREENS ═══════ -->
+
+  <!-- LOGIN -->
+  <div id="loginScreen" class="auth-screen hidden">
     <div class="auth-card">
       <div class="auth-logo">
         <span class="logo-icon">◈</span>
         <span class="logo-text">momentum</span>
       </div>
       <p class="auth-tagline">Build habits. Track progress. Level up.</p>
-
-      <!-- Google Sign In -->
       <button class="btn-google" id="googleSignInBtn">
         <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
         Continue with Google
       </button>
-
       <div class="auth-divider"><span>or</span></div>
-
-      <!-- Email/Password -->
       <div class="auth-fields">
-        <input type="email" id="authEmail" placeholder="Email address" autocomplete="email" />
-        <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
-        <p class="auth-error" id="authError"></p>
+        <input type="email" id="loginEmail" placeholder="Email address" autocomplete="email" />
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" />
+        <p class="auth-error" id="loginError"></p>
       </div>
-
-      <div class="auth-btns">
-        <button class="btn-primary" id="loginBtn">Log In</button>
-        <button class="btn-ghost" id="signupBtn">Create Account</button>
+      <button class="btn-primary btn-full" id="loginBtn">Log In</button>
+      <div class="auth-links">
+        <button class="btn-link" id="goToForgotBtn">Forgot password?</button>
+        <button class="btn-link" id="goToSignupBtn">Create an account →</button>
       </div>
-
-      <p class="auth-offline">
-        <button class="btn-link" id="offlineBtn">Continue without account →</button>
-      </p>
+      <div class="auth-divider"><span>or</span></div>
+      <button class="btn-ghost btn-full" id="offlineBtn">Continue without account</button>
     </div>
   </div>
 
-  <!-- MAIN APP -->
+  <!-- SIGN UP -->
+  <div id="signupScreen" class="auth-screen hidden">
+    <div class="auth-card">
+      <button class="auth-back" id="backToLoginFromSignup">← Back</button>
+      <div class="auth-logo"><span class="logo-icon">◈</span><span class="logo-text">momentum</span></div>
+      <h2 class="auth-heading">Create your account</h2>
+      <p class="auth-tagline">Your habits will sync across all your devices.</p>
+      <button class="btn-google" id="googleSignUpBtn">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+        Sign up with Google
+      </button>
+      <div class="auth-divider"><span>or sign up with email</span></div>
+      <div class="auth-fields">
+        <input type="text"     id="signupName"     placeholder="Your name"        autocomplete="name" />
+        <input type="email"    id="signupEmail"    placeholder="Email address"    autocomplete="email" />
+        <input type="password" id="signupPassword" placeholder="Password (min 6 characters)" autocomplete="new-password" />
+        <input type="password" id="signupConfirm"  placeholder="Confirm password" autocomplete="new-password" />
+        <p class="auth-error" id="signupError"></p>
+      </div>
+      <button class="btn-primary btn-full" id="signupBtn">Create Account</button>
+      <p class="auth-footer-note">Already have an account? <button class="btn-link" id="goToLoginFromSignup">Log in</button></p>
+    </div>
+  </div>
+
+  <!-- FORGOT PASSWORD -->
+  <div id="forgotScreen" class="auth-screen hidden">
+    <div class="auth-card">
+      <button class="auth-back" id="backToLoginFromForgot">← Back</button>
+      <div class="auth-logo"><span class="logo-icon">◈</span><span class="logo-text">momentum</span></div>
+      <h2 class="auth-heading">Reset your password</h2>
+      <p class="auth-tagline">Enter your email and we'll send you a reset link.</p>
+      <div class="auth-fields">
+        <input type="email" id="forgotEmail" placeholder="Email address" autocomplete="email" />
+        <p class="auth-error" id="forgotError"></p>
+        <p class="auth-success" id="forgotSuccess"></p>
+      </div>
+      <button class="btn-primary btn-full" id="sendResetBtn">Send Reset Link</button>
+      <p class="auth-footer-note"><button class="btn-link" id="goToLoginFromForgot">Back to login</button></p>
+    </div>
+  </div>
+
+  <!-- ═══════ MAIN APP ═══════ -->
   <div id="app" class="app hidden">
 
-    <!-- SIDEBAR -->
+    <!-- SIDEBAR (desktop) -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo">
           <span class="logo-icon">◈</span>
           <span class="logo-text">momentum</span>
         </div>
-        <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">✕</button>
+        <button class="sidebar-close" id="sidebarClose">✕</button>
       </div>
       <nav class="sidebar-nav">
-        <button class="nav-item active" data-view="habits" id="navHabits">
+        <button class="nav-item active" data-view="habits">
           <span class="nav-icon">⬡</span><span>Habits</span>
         </button>
-        <button class="nav-item" data-view="dashboard" id="navDashboard">
+        <button class="nav-item" data-view="dashboard">
           <span class="nav-icon">◎</span><span>Dashboard</span>
         </button>
       </nav>
@@ -79,26 +161,40 @@
       </div>
     </aside>
 
-    <!-- MAIN -->
-    <main class="main" id="main">
-
+    <!-- MAIN CONTENT -->
+    <main class="main">
       <header class="topbar">
-        <button class="menu-btn" id="menuBtn" aria-label="Open menu">
+        <button class="menu-btn" id="menuBtn">
           <span></span><span></span><span></span>
         </button>
         <h1 class="topbar-title" id="topbarTitle">Today's Habits</h1>
-        <button class="add-btn" id="addHabitBtn" aria-label="Add habit"><span>+</span></button>
+        <button class="add-btn" id="addHabitBtn"><span>+</span></button>
       </header>
 
       <!-- HABITS VIEW -->
       <section class="view" id="habitsView">
-        <div class="summary-strip" id="summaryStrip"></div>
-        <div class="habits-list" id="habitsList"></div>
-        <div class="empty-state" id="emptyState" hidden>
-          <div class="empty-icon">◈</div>
-          <h2>No habits yet</h2>
-          <p>Start building momentum by adding your first habit.</p>
-          <button class="btn-primary" id="emptyAddBtn">Add a Habit</button>
+
+        <!-- Skeleton loader -->
+        <div class="skeleton-wrap" id="habitsSkeleton">
+          <div class="skeleton-strip">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+          <div class="skeleton-habit"></div>
+          <div class="skeleton-habit"></div>
+          <div class="skeleton-habit"></div>
+        </div>
+
+        <div id="habitsContent" class="hidden">
+          <div class="summary-strip" id="summaryStrip"></div>
+          <div class="habits-list" id="habitsList"></div>
+          <div class="empty-state" id="emptyState" hidden>
+            <div class="empty-icon">◈</div>
+            <h2>No habits yet</h2>
+            <p>Start building momentum by adding your first habit.</p>
+            <button class="btn-primary" id="emptyAddBtn">Add Your First Habit</button>
+          </div>
         </div>
       </section>
 
@@ -114,52 +210,58 @@
           <div class="stats-grid" id="statsGrid"></div>
           <div class="chart-card chart-card--full">
             <h3 class="chart-title">30-Day Activity Heatmap</h3>
-            <div class="heatmap-wrap">
-              <canvas id="heatmapCanvas"></canvas>
-            </div>
+            <div class="heatmap-wrap"><canvas id="heatmapCanvas"></canvas></div>
             <div class="heatmap-legend">
               <span>Less</span>
-              <span class="legend-dot ld-0"></span>
-              <span class="legend-dot ld-1"></span>
-              <span class="legend-dot ld-2"></span>
-              <span class="legend-dot ld-3"></span>
+              <span class="legend-dot ld-0"></span><span class="legend-dot ld-1"></span>
+              <span class="legend-dot ld-2"></span><span class="legend-dot ld-3"></span>
               <span class="legend-dot ld-4"></span>
               <span>More</span>
             </div>
           </div>
-          <div class="charts-grid" id="chartsGrid">
-            <div class="chart-card">
-              <h3 class="chart-title">Success Rate — Last 14 Days</h3>
-              <canvas id="successRateChart"></canvas>
-            </div>
-            <div class="chart-card">
-              <h3 class="chart-title">Weekly Comparison</h3>
-              <canvas id="weekCompChart"></canvas>
-            </div>
-            <div class="chart-card chart-card--wide">
-              <h3 class="chart-title">All-Time Trend</h3>
-              <canvas id="allTimeTrendChart"></canvas>
-            </div>
+          <div class="charts-grid">
+            <div class="chart-card"><h3 class="chart-title">Success Rate — Last 14 Days</h3><canvas id="successRateChart"></canvas></div>
+            <div class="chart-card"><h3 class="chart-title">Weekly Comparison</h3><canvas id="weekCompChart"></canvas></div>
+            <div class="chart-card chart-card--wide"><h3 class="chart-title">All-Time Trend</h3><canvas id="allTimeTrendChart"></canvas></div>
           </div>
         </div>
-        <div class="empty-state" id="dashboardEmpty" hidden>
+        <!-- Empty dashboard state -->
+        <div class="dashboard-empty-state" id="dashboardEmpty" hidden>
           <div class="empty-icon">◎</div>
-          <h2>No habits to analyze</h2>
-          <p>Add some habits first to see your analytics.</p>
+          <h2>No habits to analyze yet</h2>
+          <p>Add habits and start logging to unlock your dashboard.</p>
+          <button class="btn-primary" id="dashGoAddBtn">Add a Habit</button>
+        </div>
+        <!-- No data state (habit exists but no logs) -->
+        <div class="dashboard-empty-state" id="dashboardNoData" hidden>
+          <div class="empty-icon">📊</div>
+          <h2>No data yet for this habit</h2>
+          <p>Start logging this habit to see your streaks, heatmap, and trend charts here.</p>
         </div>
       </section>
+
+      <!-- BOTTOM NAV (mobile) -->
+      <nav class="bottom-nav" id="bottomNav">
+        <button class="bottom-nav-item active" data-view="habits">
+          <span class="bottom-nav-icon">⬡</span>
+          <span class="bottom-nav-label">Habits</span>
+        </button>
+        <button class="bottom-nav-item" data-view="dashboard">
+          <span class="bottom-nav-icon">◎</span>
+          <span class="bottom-nav-label">Dashboard</span>
+        </button>
+      </nav>
 
     </main>
   </div>
 
-  <!-- MODAL BACKDROP -->
+  <!-- ═══════ MODALS ═══════ -->
   <div class="modal-backdrop" id="modalBackdrop" hidden></div>
 
-  <!-- ADD / EDIT MODAL -->
-  <div class="modal" id="habitModal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal" id="habitModal" hidden role="dialog" aria-modal="true">
     <div class="modal-header">
       <h2 id="modalTitle">New Habit</h2>
-      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+      <button class="modal-close" id="modalClose">✕</button>
     </div>
     <div class="modal-body">
       <div class="field">
@@ -173,12 +275,12 @@
       <div class="field">
         <label>Type</label>
         <div class="type-toggle">
-          <button class="type-btn active" data-type="daily" id="typeDaily">
+          <button class="type-btn active" id="typeDaily">
             <span class="type-icon">◈</span>
             <span class="type-label">Daily</span>
             <span class="type-desc">Once per day</span>
           </button>
-          <button class="type-btn" data-type="flexible" id="typeFlexible">
+          <button class="type-btn" id="typeFlexible">
             <span class="type-icon">◉</span>
             <span class="type-label">Flexible</span>
             <span class="type-desc">Multiple per day</span>
@@ -192,11 +294,10 @@
     </div>
   </div>
 
-  <!-- DELETE MODAL -->
   <div class="modal modal--sm" id="deleteModal" hidden role="dialog" aria-modal="true">
     <div class="modal-header">
       <h2>Delete Habit</h2>
-      <button class="modal-close" id="deleteModalClose" aria-label="Close">✕</button>
+      <button class="modal-close" id="deleteModalClose">✕</button>
     </div>
     <div class="modal-body">
       <p class="delete-msg">Are you sure you want to delete <strong id="deleteHabitName"></strong>? All data will be lost.</p>
@@ -207,7 +308,6 @@
     </div>
   </div>
 
-  <!-- SYNC STATUS TOAST -->
   <div class="sync-toast" id="syncToast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
