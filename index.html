@@ -189,7 +189,7 @@
         <div id="habitsContent" class="hidden">
           <div class="summary-strip" id="summaryStrip"></div>
           <div class="habits-list" id="habitsList"></div>
-          <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-state" id="emptyState" style="display:none">
             <div class="empty-icon">◈</div>
             <h2>No habits yet</h2>
             <p>Start building momentum by adding your first habit.</p>
@@ -200,13 +200,13 @@
 
       <!-- DASHBOARD VIEW -->
       <section class="view hidden" id="dashboardView">
-        <div class="dashboard-select-wrap" id="dashboardSelectWrap">
+        <div class="dashboard-select-wrap" id="dashboardSelectWrap" style="display:none">
           <label class="select-label">Select a habit to analyze</label>
           <div class="custom-select-wrap">
             <select class="custom-select" id="dashboardSelect"></select>
           </div>
         </div>
-        <div class="dashboard-content" id="dashboardContent" hidden>
+        <div class="dashboard-content" id="dashboardContent" style="display:none">
           <div class="stats-grid" id="statsGrid"></div>
           <div class="chart-card chart-card--full">
             <h3 class="chart-title">30-Day Activity Heatmap</h3>
@@ -226,14 +226,14 @@
           </div>
         </div>
         <!-- Empty dashboard state -->
-        <div class="dashboard-empty-state" id="dashboardEmpty" hidden>
+        <div class="dashboard-empty-state" id="dashboardEmpty" style="display:none">
           <div class="empty-icon">◎</div>
           <h2>No habits to analyze yet</h2>
           <p>Add habits and start logging to unlock your dashboard.</p>
           <button class="btn-primary" id="dashGoAddBtn">Add a Habit</button>
         </div>
         <!-- No data state (habit exists but no logs) -->
-        <div class="dashboard-empty-state" id="dashboardNoData" hidden>
+        <div class="dashboard-empty-state" id="dashboardNoData" style="display:none">
           <div class="empty-icon" style="-webkit-text-fill-color:initial;background:none;font-size:2.5rem;">📊</div>
           <h2>No data yet for this habit</h2>
           <p>Start logging this habit to see your streaks, heatmap, and trend charts here.</p>
