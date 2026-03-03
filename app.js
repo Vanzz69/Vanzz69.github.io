@@ -450,10 +450,11 @@ const renderHabitsView = () => {
     </div>`;
 
   const list=$('habitsList'); list.innerHTML='';
-  if(!state.habits.length){
-    $('emptyState').hidden=false; strip.hidden=true;
-  } else {
-    $('emptyState').hidden=true; strip.hidden=false;
+  const isEmpty = !state.habits.length;
+  $('emptyState').hidden = !isEmpty;
+  strip.hidden = isEmpty;
+  list.hidden = isEmpty;
+  if(!isEmpty){
     state.habits.forEach((h,i) => list.appendChild(renderHabitCard(h,i)));
   }
 };
@@ -473,6 +474,7 @@ const renderDashboard = () => {
   }
 
   $('dashboardEmpty').hidden=true;
+  $('dashboardNoData').hidden=true;
   $('dashboardSelectWrap').hidden=false;
   state.habits.forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=h.name;sel.appendChild(o);});
   if(state.selectedHabitId) sel.value=state.selectedHabitId;
@@ -492,6 +494,7 @@ const renderDashboardStats = () => {
   // No data state
   if(!s.hasData){
     $('dashboardContent').hidden=true;
+    $('dashboardEmpty').hidden=true;
     $('dashboardNoData').hidden=false;
     return;
   }
