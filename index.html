@@ -150,6 +150,9 @@
         <button class="nav-item active" data-view="habits">
           <span class="nav-icon">⬡</span><span>Habits</span>
         </button>
+        <button class="nav-item" data-view="tasks">
+          <span class="nav-icon">☑</span><span>Tasks</span>
+        </button>
         <button class="nav-item" data-view="dashboard">
           <span class="nav-icon">◎</span><span>Dashboard</span>
         </button>
@@ -241,11 +244,57 @@
         </div>
       </section>
 
+      <!-- TASKS VIEW -->
+      <section class="view hidden" id="tasksView">
+
+        <!-- Today / Upcoming toggle -->
+        <div class="tasks-toggle">
+          <button class="tasks-toggle-btn active" data-tasksview="today">Today</button>
+          <button class="tasks-toggle-btn" data-tasksview="upcoming">Upcoming</button>
+        </div>
+
+        <!-- TODAY TASKS -->
+        <div id="todayTasksPane">
+          <div class="task-input-row">
+            <input type="text" id="taskTitleInput" placeholder="Add a task…" maxlength="80" autocomplete="off" />
+            <input type="time" id="taskTimeInput" class="task-time-input" title="Optional time" />
+            <button class="btn-primary task-add-btn" id="addTaskBtn">Add</button>
+          </div>
+          <div id="todayTasksList" class="tasks-list"></div>
+          <div class="empty-state" id="todayTasksEmpty" style="display:none">
+            <div class="empty-icon" style="-webkit-text-fill-color:initial;background:none;font-size:2.5rem;">☑</div>
+            <h2>All clear for today</h2>
+            <p>Add tasks above or schedule them in Upcoming.</p>
+          </div>
+        </div>
+
+        <!-- UPCOMING TASKS -->
+        <div id="upcomingTasksPane" style="display:none">
+          <div class="task-input-row">
+            <input type="text" id="scheduledTitleInput" placeholder="Schedule a task…" maxlength="80" autocomplete="off" />
+            <input type="date" id="scheduledDateInput" class="task-date-input" />
+            <input type="time" id="scheduledTimeInput" class="task-time-input" title="Optional time" />
+            <button class="btn-primary task-add-btn" id="addScheduledBtn">Add</button>
+          </div>
+          <div id="upcomingTasksList" class="tasks-list"></div>
+          <div class="empty-state" id="upcomingTasksEmpty" style="display:none">
+            <div class="empty-icon" style="-webkit-text-fill-color:initial;background:none;font-size:2.5rem;">📅</div>
+            <h2>No upcoming tasks</h2>
+            <p>Schedule tasks for future dates and they'll appear here.</p>
+          </div>
+        </div>
+
+      </section>
+
       <!-- BOTTOM NAV (mobile) -->
       <nav class="bottom-nav" id="bottomNav">
         <button class="bottom-nav-item active" data-view="habits">
           <span class="bottom-nav-icon">⬡</span>
           <span class="bottom-nav-label">Habits</span>
+        </button>
+        <button class="bottom-nav-item" data-view="tasks">
+          <span class="bottom-nav-icon">☑</span>
+          <span class="bottom-nav-label">Tasks</span>
         </button>
         <button class="bottom-nav-item" data-view="dashboard">
           <span class="bottom-nav-icon">◎</span>
@@ -306,6 +355,20 @@
     <div class="modal-footer">
       <button class="btn-ghost" id="deleteCancelBtn">Cancel</button>
       <button class="btn-danger" id="deleteConfirmBtn">Delete</button>
+    </div>
+  </div>
+
+  <div class="modal modal--sm" id="deleteTaskModal" hidden role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>Delete Task</h2>
+      <button class="modal-close" id="deleteTaskModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="delete-msg">Delete <strong id="deleteTaskName"></strong>?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="deleteTaskCancelBtn">Cancel</button>
+      <button class="btn-danger" id="deleteTaskConfirmBtn">Delete</button>
     </div>
   </div>
 
