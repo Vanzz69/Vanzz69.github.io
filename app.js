@@ -1,7 +1,7 @@
 /**
- * MOMENTUM — app.js v6
+ * MOMENTUM — app.js v7
  * Features: onboarding, skeleton loader, bottom nav, completion animation,
- * drag-to-reorder, empty dashboard state, auth screens
+ * drag-to-reorder, empty dashboard state, auth screens, priority system
  */
 
 import {
@@ -120,9 +120,61 @@ const HabitLogic = (() => {
     return [...h.completions].sort((a,b)=>a.date.localeCompare(b.date)).map(c=>{run+=c.count;return{date:c.date,total:run};});
   };
 
+  // Priority: check on app load — convert 'tomorrow' → 'now' if date has passed
+  const processPriorityOnLoad = (habits) => {
+    const today = DateUtils.today();
+    habits.forEach(h => {
+      if (!h.priority) return;
+      if (h.priority === 'tomorrow' && h.prioritySetDate) {
+        // prioritySetDate is the date it was set — if today is after that, activate it
+        if (today > h.prioritySetDate) {
+          h.priority = 'now';
+          h.prioritySetDate = today;
+        }
+      } else if (h.priority === 'now' && h.prioritySetDate) {
+        // Auto-reset: priority 'now' resets if it was set on a previous day
+        if (h.prioritySetDate < today) {
+          h.priority = null;
+          h.prioritySetDate = null;
+        }
+      }
+    });
+  };
+
+  const setPriority = (h, type) => {
+    // type: 'now' | 'tomorrow' | null
+    const today = DateUtils.today();
+    if (type === null) {
+      h.priority = null;
+      h.prioritySetDate = null;
+    } else {
+      // Log to priorityHistory
+      if (!h.priorityHistory) h.priorityHistory = [];
+      const existing = h.priorityHistory.find(p => p.date === today);
+      if (!existing) h.priorityHistory.push({ date: today, type });
+      h.priority = type;
+      h.prioritySetDate = today;
+    }
+    return h;
+  };
+
+  const isPriorityActive = (h) => {
+    // A habit is visually active (pink) if priority==='now' AND set today
+    return h.priority === 'now';
+  };
+
+  const getPriorityChartData = (h) => {
+    if (!h.priorityHistory || !h.priorityHistory.length) return [];
+    return h.priorityHistory.map(p => {
+      const comp = h.completions.find(c => c.date === p.date);
+      return { date: p.date, type: p.type, completed: !!(comp && comp.count > 0) };
+    }).sort((a,b) => a.date.localeCompare(b.date)).slice(-30); // last 30 priority events
+  };
+
   return { complete,undo,recalcStreaks,isDailyDoneToday,getTodayCount,
     getAuraIntensity,getDailyAlignment,getDisciplineDepth,
-    computeStats,getLast14Days,getLast30Days,getAllTimeTrend };
+    computeStats,getLast14Days,getLast30Days,getAllTimeTrend,
+    processPriorityOnLoad, setPriority, isPriorityActive, getPriorityChartData };
 })();
 
 /* ═══════════════════════════════════════════════════════════
@@ -133,6 +185,7 @@ const state = {
   editingId:null,deletingId:null,selectedHabitId:null,
   charts:{},user:null,isOfflineMode:false,unsubscribeSync:null,
   dragSrcIndex:null,
+  priorityMenuId:null,
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -312,12 +365,14 @@ const handleAuthStateChange = async (user) => {
       if(state.habits.length>0) await saveHabitsToCloud(user.uid,state.habits);
     }
     state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
+    HabitLogic.processPriorityOnLoad(state.habits);
     showSyncToast('Synced ✓',true);
 
     if(state.unsubscribeSync) state.unsubscribeSync();
     state.unsubscribeSync=subscribeToHabits(user.uid,(habits)=>{
       state.habits=habits;
       state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
+      HabitLogic.processPriorityOnLoad(state.habits);
       LocalStorage.save(state.habits);
       renderHabitsView();
       if(state.currentView==='dashboard') renderDashboard();
@@ -344,6 +399,111 @@ const hideModal=(id)=>{$(id).hidden=true;$('modalBackdrop').hidden=true;};
 const hideAllModals=()=>{['habitModal','deleteModal'].forEach(id=>$(id).hidden=true);$('modalBackdrop').hidden=true;};
 
 /* ═══════════════════════════════════════════════════════════
+   PRIORITY CONTEXT MENU
+═══════════════════════════════════════════════════════════ */
+let priorityMenuEl = null;
+
+const closePriorityMenu = () => {
+  if (priorityMenuEl) { priorityMenuEl.remove(); priorityMenuEl = null; }
+  state.priorityMenuId = null;
+};
+
+const openPriorityMenu = (habitId, anchorEl) => {
+  closePriorityMenu();
+  const habit = state.habits.find(h => h.id === habitId);
+  if (!habit) return;
+  state.priorityMenuId = habitId;
+
+  const isActive = HabitLogic.isPriorityActive(habit);
+  const isTomorrow = habit.priority === 'tomorrow';
+
+  const menu = document.createElement('div');
+  menu.className = 'priority-menu';
+  menu.innerHTML = `
+    <div class="priority-menu-title">⚡ Set Priority</div>
+    <button class="priority-menu-item ${isActive ? 'active' : ''}" data-action="now">
+      <span class="pm-icon">🔴</span>
+      <span class="pm-text">
+        <strong>Priority Today</strong>
+        <span>${isActive ? 'Currently active — tap to remove' : 'Mark as top priority now'}</span>
+      </span>
+      ${isActive ? '<span class="pm-check">✓</span>' : ''}
+    </button>
+    <button class="priority-menu-item ${isTomorrow ? 'active' : ''}" data-action="tomorrow">
+      <span class="pm-icon">🌅</span>
+      <span class="pm-text">
+        <strong>Prioritize Tomorrow</strong>
+        <span>${isTomorrow ? 'Set for tomorrow — tap to remove' : 'Flag for tomorrow morning'}</span>
+      </span>
+      ${isTomorrow ? '<span class="pm-check">✓</span>' : ''}
+    </button>
+  `;
+
+  // Position near the card
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = `${Math.min(rect.bottom + 8, window.innerHeight - 180)}px`;
+  menu.style.left = `${Math.min(rect.left, window.innerWidth - 260)}px`;
+
+  menu.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const h = state.habits.find(h => h.id === habitId);
+    if (!h) return;
+
+    if (action === 'now') {
+      HabitLogic.setPriority(h, isActive ? null : 'now');
+    } else if (action === 'tomorrow') {
+      HabitLogic.setPriority(h, isTomorrow ? null : 'tomorrow');
+    }
+    closePriorityMenu();
+    await saveHabits();
+    renderHabitsView();
+  });
+
+  document.body.appendChild(menu);
+  priorityMenuEl = menu;
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', closePriorityMenu, { once: true });
+  }, 10);
+};
+
+// Long press detection — works on both touch and mouse
+const addLongPress = (el, habitId, callback) => {
+  let timer = null;
+  let moved = false;
+
+  const start = (e) => {
+    moved = false;
+    el.classList.add('long-press-hold');
+    timer = setTimeout(() => {
+      if (!moved) {
+        el.classList.remove('long-press-hold');
+        el.classList.add('long-press-triggered');
+        setTimeout(() => el.classList.remove('long-press-triggered'), 400);
+        callback(habitId, el);
+      }
+    }, 500);
+  };
+  const cancel = () => {
+    clearTimeout(timer);
+    el.classList.remove('long-press-hold');
+  };
+  const move = () => { moved = true; cancel(); };
+
+  el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('touchend', cancel);
+  el.addEventListener('touchmove', move, { passive: true });
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup', cancel);
+  el.addEventListener('mousemove', move);
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); callback(habitId, el); });
+};
+
+/* ═══════════════════════════════════════════════════════════
    COMPLETION ANIMATION
 ═══════════════════════════════════════════════════════════ */
 const triggerCompleteAnimation = (cardEl) => {
@@ -361,14 +521,23 @@ const renderHabitCard = (habit, index) => {
   const isDaily=habit.type==='daily';
   const doneTodayFlag=HabitLogic.isDailyDoneToday(habit);
   const hasToday=todayCount>0;
+  const isPriority=HabitLogic.isPriorityActive(habit);
+  const isTomorrow=habit.priority==='tomorrow';
 
   const dots=Array.from({length:7},(_,i)=>{
     const date=DateUtils.daysAgo(6-i),rec=habit.completions.find(c=>c.date===date);
     return `<span class="week-dot${rec&&rec.count>0?' week-dot--on':''}" title="${date}"></span>`;
   }).join('');
 
+  // Priority badge
+  const priorityBadge = isPriority
+    ? `<span class="priority-badge priority-badge--now">🔴 Priority</span>`
+    : isTomorrow
+    ? `<span class="priority-badge priority-badge--tomorrow">🌅 Tomorrow</span>`
+    : '';
+
   const card=document.createElement('article');
-  card.className=`habit-card${hasToday?' completed-today':''}`;
+  card.className=`habit-card${hasToday?' completed-today':''}${isPriority?' priority-active':''}`;
   card.dataset.id=habit.id;
   card.dataset.index=index;
   card.draggable=true;
@@ -379,6 +548,7 @@ const renderHabitCard = (habit, index) => {
       <div class="habit-top">
         <span class="habit-type-badge">${habit.type}</span>
         <span class="habit-name">${esc(habit.name)}</span>
+        ${priorityBadge}
       </div>
       <div class="habit-week-dots">${dots}</div>
       <div class="habit-meta">
@@ -402,6 +572,9 @@ const renderHabitCard = (habit, index) => {
         <button class="icon-btn delete icon-btn-delete" data-id="${habit.id}" title="Delete">⌫</button>
       </div>
     </div>`;
+
+  // Long press → priority menu
+  addLongPress(card, habit.id, openPriorityMenu);
 
   // Drag events
   card.addEventListener('dragstart', (e) => {
@@ -574,6 +747,53 @@ const renderCharts=(habit)=>{
   const atGrad=atCtx.createLinearGradient(0,0,0,200);
   atGrad.addColorStop(0,'rgba(52,211,153,0.35)');atGrad.addColorStop(1,'rgba(52,211,153,0)');
   state.charts.at=new Chart(atCtx,{type:'line',data:{labels:allTime.length?allTime.map(d=>DateUtils.formatShort(d.date)):['–'],datasets:[{data:allTime.length?allTime.map(d=>d.total):[0],borderColor:C.green,backgroundColor:atGrad,borderWidth:2.5,tension:0.4,fill:true,pointRadius:allTime.length>30?0:3,pointBackgroundColor:C.green}]},options:{responsive:true,plugins:{legend:{display:false}},scales:baseScales(),animation:{duration:800}}});
+
+  // Priority chart
+  const priorityData = HabitLogic.getPriorityChartData(habit);
+  const pChartEmpty = document.getElementById('priorityChartEmpty');
+  const pChartCanvas = document.getElementById('priorityChart');
+  if (!priorityData.length) {
+    pChartCanvas.style.display = 'none';
+    pChartEmpty.style.display = 'block';
+  } else {
+    pChartCanvas.style.display = '';
+    pChartEmpty.style.display = 'none';
+    const pCtx = pChartCanvas.getContext('2d');
+    state.charts.priority = new Chart(pCtx, {
+      type: 'bar',
+      data: {
+        labels: priorityData.map(d => DateUtils.formatShort(d.date)),
+        datasets: [
+          {
+            label: 'Priority day',
+            data: priorityData.map(() => 1),
+            backgroundColor: priorityData.map(d => d.completed ? 'rgba(52,211,153,0.75)' : 'rgba(251,113,133,0.65)'),
+            borderRadius: 6,
+            borderSkipped: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const d = priorityData[ctx.dataIndex];
+                return d.completed ? '✅ Completed on priority day' : '❌ Missed on priority day';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: C.grid }, ticks: { color: C.text, font: { family: 'DM Sans', size: 11 } } },
+          y: { display: false, max: 1.5 }
+        },
+        animation: { duration: 700 }
+      }
+    });
+  }
 };
 
 const renderHeatmap=(last30)=>{
@@ -600,6 +820,7 @@ const renderHeatmap=(last30)=>{
 ═══════════════════════════════════════════════════════════ */
 const switchView=(view)=>{
   state.currentView=view;
+  closePriorityMenu();
   $('habitsView').classList.toggle('hidden',view!=='habits');
   $('dashboardView').classList.toggle('hidden',view!=='dashboard');
   // Sync both nav bars
