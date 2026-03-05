@@ -56,14 +56,12 @@ const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 const logOut = () => signOut(auth);
 
 /* ── FIRESTORE ── */
-const getUserDocRef = (uid) => doc(db, 'users', uid, 'data', 'habits');
+const getUserDocRef  = (uid) => doc(db, 'users', uid, 'data', 'habits');
+const getTasksDocRef = (uid) => doc(db, 'users', uid, 'data', 'tasks');
 
 const saveHabitsToCloud = async (uid, habits) => {
-  try {
-    await setDoc(getUserDocRef(uid), { habits, updatedAt: Date.now() });
-  } catch (err) {
-    console.warn('Cloud save failed:', err);
-  }
+  try { await setDoc(getUserDocRef(uid), { habits, updatedAt: Date.now() }); }
+  catch (err) { console.warn('Cloud save failed:', err); }
 };
 
 const loadHabitsFromCloud = async (uid) => {
@@ -71,10 +69,7 @@ const loadHabitsFromCloud = async (uid) => {
     const snap = await getDoc(getUserDocRef(uid));
     if (snap.exists()) return snap.data().habits || [];
     return null;
-  } catch (err) {
-    console.warn('Cloud load failed:', err);
-    return null;
-  }
+  } catch (err) { console.warn('Cloud load failed:', err); return null; }
 };
 
 const subscribeToHabits = (uid, callback) =>
@@ -82,8 +77,22 @@ const subscribeToHabits = (uid, callback) =>
     if (snap.exists()) callback(snap.data().habits || []);
   });
 
+const saveTasksToCloud = async (uid, tasks) => {
+  try { await setDoc(getTasksDocRef(uid), { tasks, updatedAt: Date.now() }); }
+  catch (err) { console.warn('Task cloud save failed:', err); }
+};
+
+const loadTasksFromCloud = async (uid) => {
+  try {
+    const snap = await getDoc(getTasksDocRef(uid));
+    if (snap.exists()) return snap.data().tasks || [];
+    return null;
+  } catch (err) { console.warn('Task cloud load failed:', err); return null; }
+};
+
 export {
   auth, onAuthStateChanged,
   signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, logOut,
   saveHabitsToCloud, loadHabitsFromCloud, subscribeToHabits,
+  saveTasksToCloud, loadTasksFromCloud,
 };
