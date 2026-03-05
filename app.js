@@ -233,7 +233,11 @@ const showSyncToast = (msg,success=false) => {
    GLOBAL LOADER
 ═══════════════════════════════════════════════════════════ */
 const showGlobalLoader = () => document.getElementById('globalLoader').classList.remove('hidden');
-const hideGlobalLoader = () => document.getElementById('globalLoader').classList.add('fade-out',()=>{});
+const hideGlobalLoader = () => {
+  const el = document.getElementById('globalLoader');
+  el.classList.add('fade-out');
+  setTimeout(() => el.classList.add('hidden'), 400);
+};
 
 /* ═══════════════════════════════════════════════════════════
    ONBOARDING
@@ -357,7 +361,7 @@ const initAuthEvents = () => {
     }
   });
 
-  document.getElementById('offlineBtn').addEventListener('click',()=>{\
+  document.getElementById('offlineBtn').addEventListener('click',()=>{
     state.isOfflineMode=true;
     state.habits=LocalStorage.load();
     state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
@@ -385,55 +389,61 @@ const initAuthEvents = () => {
 ═══════════════════════════════════════════════════════════ */
 const handleAuthStateChange = async (user) => {
   document.getElementById('globalLoader').classList.add('hidden');
+  try {
+    if(user){
+      state.user=user; state.isOfflineMode=false;
+      const userInfo=document.getElementById('userInfo');
+      if(userInfo) userInfo.innerHTML=`
+        <img src="${user.photoURL||''}" class="user-avatar" onerror="this.style.display='none'" />
+        <span class="user-name">${user.displayName||user.email}</span>`;
 
-  if(user){
-    state.user=user;state.isOfflineMode=false;
-    const userInfo=document.getElementById('userInfo');
-    if(userInfo) userInfo.innerHTML=`
-      <img src="${user.photoURL||''}" class="user-avatar" onerror="this.style.display='none'" />
-      <span class="user-name">${user.displayName||user.email}</span>`;
+      showScreen('app');
+      showSkeleton();
+      initAppUI();
 
-    showScreen('app');
-    showSkeleton();
-    initAppUI();
-
-    showSyncToast('Loading…');
-    const cloudHabits=await loadHabitsFromCloud(user.uid);
-    if(cloudHabits!==null){
-      state.habits=cloudHabits;
-      LocalStorage.save(state.habits);
-    } else {
-      state.habits=LocalStorage.load();
-      if(state.habits.length>0) await saveHabitsToCloud(user.uid,state.habits);
-    }
-    state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
-    HabitLogic.processPriorityOnLoad(state.habits);
-
-    const cloudTasks = await loadTasksFromCloud(user.uid);
-    if(cloudTasks!==null){ state.tasks=cloudTasks; saveLocalTasks(state.tasks); }
-    else { state.tasks=loadLocalTasks(); if(state.tasks.length>0) await saveTasksToCloud(user.uid,state.tasks); }
-    processDueTasks();
-
-    showSyncToast('Synced ✓',true);
-
-    if(state.unsubscribeSync) state.unsubscribeSync();
-    state.unsubscribeSync=subscribeToHabits(user.uid,(habits)=>{
-      state.habits=habits;
+      showSyncToast('Loading…');
+      const cloudHabits=await loadHabitsFromCloud(user.uid);
+      if(cloudHabits!==null){
+        state.habits=cloudHabits;
+        LocalStorage.save(state.habits);
+      } else {
+        state.habits=LocalStorage.load();
+        if(state.habits.length>0) await saveHabitsToCloud(user.uid,state.habits);
+      }
       state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
       HabitLogic.processPriorityOnLoad(state.habits);
-      LocalStorage.save(state.habits);
-      renderHabitsView();
-      if(state.currentView==='dashboard') renderDashboard();
-    });
 
-    hideSkeleton();
-    renderHabitsView();
-  } else {
-    if(!LocalStorage.hasOnboarded()) {
-      initOnboarding();
+      const cloudTasks = await loadTasksFromCloud(user.uid);
+      if(cloudTasks!==null){ state.tasks=cloudTasks; saveLocalTasks(state.tasks); }
+      else { state.tasks=loadLocalTasks(); if(state.tasks.length>0) await saveTasksToCloud(user.uid,state.tasks); }
+      processDueTasks();
+
+      showSyncToast('Synced ✓',true);
+
+      if(state.unsubscribeSync) state.unsubscribeSync();
+      state.unsubscribeSync=subscribeToHabits(user.uid,(habits)=>{
+        state.habits=habits;
+        state.habits.forEach(h=>HabitLogic.recalcStreaks(h));
+        HabitLogic.processPriorityOnLoad(state.habits);
+        LocalStorage.save(state.habits);
+        renderHabitsView();
+        if(state.currentView==='dashboard') renderDashboard();
+      });
+
+      hideSkeleton();
+      renderHabitsView();
     } else {
-      showScreen('loginScreen');
+      if(!LocalStorage.hasOnboarded()) {
+        initOnboarding();
+      } else {
+        showScreen('loginScreen');
+      }
     }
+  } catch(err) {
+    console.error('App init error:', err);
+    // Always fall through to login on any error — never leave loader stuck
+    document.getElementById('globalLoader').classList.add('hidden');
+    showScreen('loginScreen');
   }
 };
 
@@ -1285,6 +1295,7 @@ const initAppUI=()=>{
   $('deleteTaskConfirmBtn').addEventListener('click', confirmDeleteTask);
   $('deleteTaskCancelBtn').addEventListener('click', () => hideModal('deleteTaskModal'));
   $('deleteTaskModalClose').addEventListener('click', () => hideModal('deleteTaskModal'));
+  $('typeDaily').addEventListener('click',()=>setTypeActive('daily'));
   $('typeFlexible').addEventListener('click',()=>setTypeActive('flexible'));
   $('modalSave').addEventListener('click',saveHabit);
   $('modalCancel').addEventListener('click',()=>hideModal('habitModal'));
