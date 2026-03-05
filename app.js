@@ -308,12 +308,31 @@ const initAuthEvents = () => {
   });
 
   document.getElementById('sendResetBtn').addEventListener('click', async () => {
-    const err=document.getElementById('forgotError'),suc=document.getElementById('forgotSuccess');
-    err.textContent='';suc.textContent='';
+    const err=document.getElementById('forgotError');
+    const suc=document.getElementById('forgotSuccess');
+    const btn=document.getElementById('sendResetBtn');
+    err.textContent=''; suc.textContent='';
     const email=document.getElementById('forgotEmail').value.trim();
-    if(!email){err.textContent='Please enter your email.';return;}
-    try { await resetPassword(email); suc.textContent='Reset link sent! Check your inbox.'; document.getElementById('forgotEmail').value=''; }
-    catch(e){ err.textContent=e.code==='auth/user-not-found'?'No account found.':'Failed to send email.'; }
+    if(!email){err.textContent='Please enter your email address.';return;}
+    // Basic email format check
+    if(!email.includes('@')){err.textContent='Please enter a valid email address.';return;}
+    btn.textContent='Sending…'; btn.disabled=true;
+    try {
+      await resetPassword(email);
+      suc.textContent='Reset link sent! Check your inbox (and spam folder).';
+      document.getElementById('forgotEmail').value='';
+    } catch(e) {
+      console.error('Reset error:', e.code, e.message);
+      if(e.code==='auth/user-not-found' || e.code==='auth/invalid-email') {
+        err.textContent='No account found with that email address.';
+      } else if(e.code==='auth/too-many-requests') {
+        err.textContent='Too many attempts. Please try again later.';
+      } else {
+        err.textContent=`Failed to send email. (${e.code || 'unknown error'})`;
+      }
+    } finally {
+      btn.textContent='Send Reset Link'; btn.disabled=false;
+    }
   });
 
   document.getElementById('offlineBtn').addEventListener('click',()=>{
@@ -439,11 +458,22 @@ const openPriorityMenu = (habitId, anchorEl) => {
     </button>
   `;
 
-  // Position near the card
+  // Position — always fully on screen
   const rect = anchorEl.getBoundingClientRect();
+  const menuW = 260, menuH = 160;
+  const padding = 12;
+  let top = rect.bottom + 8;
+  let left = rect.left;
+  // Flip above if not enough room below
+  if (top + menuH > window.innerHeight - padding) top = rect.top - menuH - 8;
+  // Clamp horizontally
+  left = Math.max(padding, Math.min(left, window.innerWidth - menuW - padding));
+  // Clamp vertically
+  top = Math.max(padding, top);
   menu.style.position = 'fixed';
-  menu.style.top = `${Math.min(rect.bottom + 8, window.innerHeight - 180)}px`;
-  menu.style.left = `${Math.min(rect.left, window.innerWidth - 260)}px`;
+  menu.style.top  = `${top}px`;
+  menu.style.left = `${left}px`;
+  menu.style.width = `${menuW}px`;
 
   menu.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
@@ -486,7 +516,7 @@ const addLongPress = (el, habitId, callback) => {
         setTimeout(() => el.classList.remove('long-press-triggered'), 400);
         callback(habitId, el);
       }
-    }, 500);
+    }, 700);
   };
   const cancel = () => {
     clearTimeout(timer);
