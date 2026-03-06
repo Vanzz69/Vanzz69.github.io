@@ -1069,3 +1069,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;fon
   padding: var(--sp-2) 0;
 }
 .pace-eta strong { color: var(--text-2); }
+
+/* ── PRIORITY STAT CARD extras ───────────────────────────── */
+.stat-card__accent--pink { background: rgba(244,114,182,.12); color: #f472b6; }
+.mini-fill--green { background: linear-gradient(90deg, var(--green), rgba(52,211,153,.4)); }
+.mini-fill--red   { background: linear-gradient(90deg, var(--red),   rgba(248,113,113,.4)); }
