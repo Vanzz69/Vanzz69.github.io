@@ -1061,3 +1061,11 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;fon
   font-size: .95rem; line-height: 1.7; color: var(--text-2);
   white-space: pre-wrap; word-break: break-word;
 }
+
+/* ── GOAL PACE — fix ────────────────────────────────────── */
+.pace-fill { background: linear-gradient(90deg, var(--accent), rgba(124,107,255,.4)); }
+.pace-eta {
+  font-size: .82rem; color: var(--text-3); text-align: center;
+  padding: var(--sp-2) 0;
+}
+.pace-eta strong { color: var(--text-2); }
