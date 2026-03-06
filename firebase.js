@@ -91,10 +91,26 @@ const loadTasksFromCloud = async (uid) => {
   } catch (err) { console.warn('Task cloud load failed:', err); return null; }
 };
 
+const getJournalDocRef = (uid) => doc(db, 'users', uid, 'data', 'journal');
+
+const saveJournalToCloud = async (uid, journal) => {
+  try { await setDoc(getJournalDocRef(uid), { journal, updatedAt: Date.now() }); }
+  catch (err) { console.warn('Journal cloud save failed:', err); }
+};
+
+const loadJournalFromCloud = async (uid) => {
+  try {
+    const snap = await getDoc(getJournalDocRef(uid));
+    if (snap.exists()) return snap.data().journal || [];
+    return null;
+  } catch (err) { console.warn('Journal cloud load failed:', err); return null; }
+};
+
 export {
   auth, onAuthStateChanged,
   signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, logOut,
   saveHabitsToCloud, loadHabitsFromCloud, subscribeToHabits,
   saveTasksToCloud, loadTasksFromCloud,
+  saveJournalToCloud, loadJournalFromCloud,
   checkRedirectResult,
 };
