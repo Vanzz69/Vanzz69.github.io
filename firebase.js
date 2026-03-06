@@ -8,8 +8,6 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -28,7 +26,7 @@ import {
 
 const firebaseConfig = {
   apiKey: "AIzaSyDgmvkghH7ill_tRw-d5TGgh7t5o9kLa40",
-  authDomain: "momentum-habit-tracker-ccb56.firebaseapp.com",
+  authDomain: "vanzz69.github.io",
   projectId: "momentum-habit-tracker-ccb56",
   storageBucket: "momentum-habit-tracker-ccb56.firebasestorage.app",
   messagingSenderId: "1045852198013",
@@ -41,15 +39,9 @@ const db   = getFirestore(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
 /* ── AUTH ── */
-const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const signInWithGoogle = () => signInWithPopup(auth, new GoogleAuthProvider());
 
-const signInWithGoogle = () => {
-  const provider = new GoogleAuthProvider();
-  if (isMobileDevice()) return signInWithRedirect(auth, provider);
-  return signInWithPopup(auth, provider);
-};
-
-const checkRedirectResult = () => getRedirectResult(auth).catch(() => null);
+const checkRedirectResult = () => Promise.resolve(null);
 
 const signInWithEmail = (email, password) =>
   signInWithEmailAndPassword(auth, email, password);
