@@ -29,15 +29,21 @@ const LocalStorage = (() => {
    DATE UTILITIES
 ═══════════════════════════════════════════════════════════ */
 const DateUtils = (() => {
-  const today = () => new Date().toISOString().split('T')[0];
-  const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().split('T')[0]; };
-  const daysAgo = (n) => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().split('T')[0]; };
+  const toLocalISO = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  };
+  const today = () => toLocalISO(new Date());
+  const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return toLocalISO(d); };
+  const daysAgo = (n) => { const d=new Date(); d.setDate(d.getDate()-n); return toLocalISO(d); };
   const daysBetween = (a,b) => Math.floor((new Date(b)-new Date(a))/86400000);
   const formatShort = (s) => new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   const formatFull  = () => new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const startOfWeek = (off=0) => { const d=new Date(); d.setDate(d.getDate()-d.getDay()-off*7); return d.toISOString().split('T')[0]; };
-  const endOfWeek   = (off=0) => { const d=new Date(); d.setDate(d.getDate()-d.getDay()+6-off*7); return d.toISOString().split('T')[0]; };
-  return { today, yesterday, daysAgo, daysBetween, formatShort, formatFull, startOfWeek, endOfWeek };
+  const startOfWeek = (off=0) => { const d=new Date(); d.setDate(d.getDate()-d.getDay()-off*7); return toLocalISO(d); };
+  const endOfWeek   = (off=0) => { const d=new Date(); d.setDate(d.getDate()-d.getDay()+6-off*7); return toLocalISO(d); };
+  return { today, yesterday, daysAgo, daysBetween, formatShort, formatFull, startOfWeek, endOfWeek, toLocalISO };
 })();
 
 /* ═══════════════════════════════════════════════════════════
@@ -72,7 +78,7 @@ const HabitLogic = (() => {
       DateUtils.daysBetween(sorted[i-1],sorted[i])===1?(cur++,longest=Math.max(longest,cur)):(cur=1);
     h.longestStreak=longest;
     let streak=0,check=active.has(DateUtils.today())?DateUtils.today():DateUtils.yesterday();
-    while(active.has(check)){streak++;const d=new Date(check+'T00:00:00');d.setDate(d.getDate()-1);check=d.toISOString().split('T')[0];}
+    while(active.has(check)){streak++;const d=new Date(check+'T00:00:00');d.setDate(d.getDate()-1);check=DateUtils.toLocalISO(d);}
     h.currentStreak=streak;
   };
 
@@ -1008,7 +1014,7 @@ const renderCharts=(habit)=>{
   srGrad.addColorStop(0,'rgba(124,107,255,0.3)');srGrad.addColorStop(1,'rgba(124,107,255,0)');
   const srData=last14.map(d=>d.count>0?100:0);
   state.charts.sr=new Chart(srCtx,{type:'line',data:{labels:last14.map(d=>DateUtils.formatShort(d.date)),datasets:[{data:srData,borderColor:C.accent,backgroundColor:srGrad,borderWidth:2.5,tension:0.35,fill:true,pointRadius:4,pointBackgroundColor:srData.map(v=>v===100?C.green:'rgba(248,113,113,0.7)')}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{...baseScales(),y:{...baseScales().y,max:100,ticks:{...baseScales().y.ticks,callback:v=>v+'%'}}},animation:{duration:600}}});
-  const buildWeekDays=(off)=>Array.from({length:7},(_,i)=>{const base=new Date(DateUtils.startOfWeek(off)+'T00:00:00');base.setDate(base.getDate()+i);const ds=base.toISOString().split('T')[0];const rec=habit.completions.find(c=>c.date===ds);return rec?rec.count:0;});
+  const buildWeekDays=(off)=>Array.from({length:7},(_,i)=>{const base=new Date(DateUtils.startOfWeek(off)+'T00:00:00');base.setDate(base.getDate()+i);const ds=DateUtils.toLocalISO(base);const rec=habit.completions.find(c=>c.date===ds);return rec?rec.count:0;});
   const wkCtx=$('weekCompChart').getContext('2d');
   state.charts.wk=new Chart(wkCtx,{type:'bar',data:{labels:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],datasets:[{label:'This week',data:buildWeekDays(0),backgroundColor:'rgba(124,107,255,0.75)',borderRadius:5,borderSkipped:false},{label:'Last week',data:buildWeekDays(1),backgroundColor:'rgba(96,165,250,0.4)',borderRadius:5,borderSkipped:false}]},options:{responsive:true,plugins:{legend:{display:true,labels:{color:C.text,font:{family:'DM Sans',size:11},boxWidth:12}}},scales:baseScales(),animation:{duration:700}}});
   const atCtx=$('allTimeTrendChart').getContext('2d');
@@ -1173,8 +1179,9 @@ const completeHabit=async(id, cardEl)=>{
   HabitLogic.complete(h);
   if(cardEl) triggerCompleteAnimation(cardEl);
   await saveHabits();renderHabitsView();
+  if(state.currentView==='dashboard'&&state.selectedHabitId===id) renderDashboardStats();
 };
-const undoHabit=async(id)=>{const h=state.habits.find(h=>h.id===id);if(!h)return;HabitLogic.undo(h);await saveHabits();renderHabitsView();};
+const undoHabit=async(id)=>{const h=state.habits.find(h=>h.id===id);if(!h)return;HabitLogic.undo(h);await saveHabits();renderHabitsView();if(state.currentView==='dashboard'&&state.selectedHabitId===id) renderDashboardStats();};
 
 /* ═══════════════════════════════════════════════════════════
    NOTIFICATIONS
