@@ -8,6 +8,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -21,9 +23,7 @@ import {
   setDoc,
   getDoc,
   onSnapshot,
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  enableIndexedDbPersistence,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -37,12 +37,19 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db   = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-});
+const db   = getFirestore(app);
+enableIndexedDbPersistence(db).catch(() => {});
 
 /* ── AUTH ── */
-const signInWithGoogle = () => signInWithPopup(auth, new GoogleAuthProvider());
+const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+const signInWithGoogle = () => {
+  const provider = new GoogleAuthProvider();
+  if (isMobileDevice()) return signInWithRedirect(auth, provider);
+  return signInWithPopup(auth, provider);
+};
+
+const checkRedirectResult = () => getRedirectResult(auth).catch(() => null);
 
 const signInWithEmail = (email, password) =>
   signInWithEmailAndPassword(auth, email, password);
@@ -97,4 +104,5 @@ export {
   signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, logOut,
   saveHabitsToCloud, loadHabitsFromCloud, subscribeToHabits,
   saveTasksToCloud, loadTasksFromCloud,
+  checkRedirectResult,
 };
