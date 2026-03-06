@@ -255,10 +255,12 @@
 
         <!-- TODAY TASKS -->
         <div id="todayTasksPane">
-          <div class="task-input-row">
-            <input type="text" id="taskTitleInput" placeholder="Add a task…" maxlength="80" autocomplete="off" />
-            <input type="time" id="taskTimeInput" class="task-time-input" title="Optional time" />
-            <button class="btn-primary task-add-btn" id="addTaskBtn">Add</button>
+          <div class="task-input-card">
+            <input type="text" id="taskTitleInput" placeholder="Add a task…" maxlength="80" autocomplete="off" class="task-title-input" />
+            <div class="task-input-bottom">
+              <input type="time" id="taskTimeInput" class="task-time-input" title="Optional time" />
+              <button class="btn-primary task-add-btn" id="addTaskBtn">Add</button>
+            </div>
           </div>
           <div id="todayTasksList" class="tasks-list"></div>
           <div class="empty-state" id="todayTasksEmpty" style="display:none">
@@ -270,11 +272,13 @@
 
         <!-- UPCOMING TASKS -->
         <div id="upcomingTasksPane" style="display:none">
-          <div class="task-input-row">
-            <input type="text" id="scheduledTitleInput" placeholder="Schedule a task…" maxlength="80" autocomplete="off" />
-            <input type="date" id="scheduledDateInput" class="task-date-input" />
-            <input type="time" id="scheduledTimeInput" class="task-time-input" title="Optional time" />
-            <button class="btn-primary task-add-btn" id="addScheduledBtn">Add</button>
+          <div class="task-input-card">
+            <input type="text" id="scheduledTitleInput" placeholder="What needs to be done?" maxlength="80" autocomplete="off" class="task-title-input" />
+            <div class="task-input-bottom">
+              <input type="date" id="scheduledDateInput" class="task-date-input" />
+              <input type="time" id="scheduledTimeInput" class="task-time-input" title="Optional time" />
+              <button class="btn-primary task-add-btn" id="addScheduledBtn">Add</button>
+            </div>
           </div>
           <div id="upcomingTasksList" class="tasks-list"></div>
           <div class="empty-state" id="upcomingTasksEmpty" style="display:none">
@@ -283,6 +287,9 @@
             <p>Schedule tasks for future dates and they'll appear here.</p>
           </div>
         </div>
+
+        <!-- History button — always visible at bottom of tasks view -->
+        <button class="task-history-btn" id="taskHistoryBtn">📋 View Task History</button>
 
       </section>
 
@@ -369,6 +376,17 @@
     <div class="modal-footer">
       <button class="btn-ghost" id="deleteTaskCancelBtn">Cancel</button>
       <button class="btn-danger" id="deleteTaskConfirmBtn">Delete</button>
+    </div>
+  </div>
+
+  <div class="modal modal--history" id="taskHistoryModal" hidden role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>📋 Task History</h2>
+      <button class="modal-close" id="taskHistoryModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="history-sub">Completed &amp; scheduled tasks — last 30 days</p>
+      <div id="taskHistoryList" class="task-history-list"></div>
     </div>
   </div>
 
