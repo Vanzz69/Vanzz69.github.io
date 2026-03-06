@@ -1037,55 +1037,52 @@ const renderActivityCalendar = (habit) => {
 const renderGoalPace = (habit) => {
   const s = HabitLogic.computeStats(habit);
   const el = $('goalPaceCard');
-  const daysSinceStart = s.totalDays;
-  const val = s.msValue; // completions or active days
+  const val = s.msValue;
   const goal = habit.goal;
+  const unit = s.isMSDaily ? 'days' : 'completions';
 
   if(val >= goal){
-    el.innerHTML = `<div class="pace-complete">🏆 Goal reached! You hit ${goal} ${s.isMSDaily?'days':'completions'}.</div>`;
+    el.innerHTML = `<div class="pace-complete">🏆 Goal reached! You hit ${goal} ${unit}.</div>`;
     return;
   }
 
-  // Current pace (per day)
-  const pace = daysSinceStart > 0 ? val / daysSinceStart : 0;
-  // Days needed at current pace
+  const daysSinceStart = Math.max(s.totalDays, 1);
+  const pace = val / daysSinceStart;           // avg per day
   const remaining = goal - val;
-  const daysNeeded = pace > 0 ? Math.ceil(remaining / pace) : null;
-  const eta = daysNeeded ? new Date(Date.now() + daysNeeded*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : null;
+  const pct = Math.min(Math.round((val / goal) * 100), 100);
 
-  // Required pace to finish in same time as started (mirror symmetry)
-  const totalProjected = daysSinceStart * 2; // simple projection
-  const requiredPace = totalProjected > 0 ? (remaining / Math.max(daysSinceStart,1)).toFixed(2) : null;
-
-  // Progress pct
-  const pct = Math.min(Math.round((val/goal)*100),100);
-
-  // Status colour
-  const onTrack = pace >= (goal / Math.max(daysSinceStart*2,1));
+  // ETA — only meaningful if pace > 0
+  let etaStr = '—';
+  let daysLeft = null;
+  if(pace > 0){
+    daysLeft = Math.ceil(remaining / pace);
+    const etaDate = new Date(Date.now() + daysLeft * 86400000);
+    etaStr = etaDate.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  }
 
   el.innerHTML = `
     <div class="pace-stats">
       <div class="pace-stat">
-        <div class="pace-stat__val">${val} <span>/ ${goal}</span></div>
-        <div class="pace-stat__label">${s.isMSDaily?'Days logged':'Total completions'}</div>
+        <div class="pace-stat__val">${val}<span> / ${goal}</span></div>
+        <div class="pace-stat__label">${unit}</div>
       </div>
       <div class="pace-stat">
-        <div class="pace-stat__val ${onTrack?'on-track':'off-track'}">${pace.toFixed(2)}</div>
-        <div class="pace-stat__label">Current pace / day</div>
+        <div class="pace-stat__val">${pace > 0 ? pace.toFixed(2) : '—'}</div>
+        <div class="pace-stat__label">avg per day</div>
       </div>
       <div class="pace-stat">
-        <div class="pace-stat__val">${eta || '—'}</div>
-        <div class="pace-stat__label">Estimated finish</div>
+        <div class="pace-stat__val">${daysLeft !== null ? daysLeft : '—'}</div>
+        <div class="pace-stat__label">days to finish</div>
       </div>
     </div>
     <div class="pace-bar-wrap">
-      <div class="pace-bar"><div class="pace-fill ${onTrack?'on-track':'off-track'}" style="width:${pct}%"></div></div>
+      <div class="pace-bar"><div class="pace-fill" style="width:${pct}%"></div></div>
       <span class="pace-pct">${pct}%</span>
     </div>
-    <div class="pace-message ${onTrack?'pace-good':'pace-warn'}">
-      ${onTrack
-        ? `✅ You're on track — ${remaining} ${s.isMSDaily?'days':'completions'} to go`
-        : `⚠️ Behind pace — need to pick up the rate to hit your goal`}
+    <div class="pace-eta">
+      ${pace > 0
+        ? `At this pace, you'll finish around <strong>${etaStr}</strong>`
+        : `Log some completions to see your estimated finish date`}
     </div>
   `;
 };
