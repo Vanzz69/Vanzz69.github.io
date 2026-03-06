@@ -956,7 +956,29 @@ const renderDashboardStats = () => {
       <div class="stat-card__value velocity-val ${s.velocityPct>=0?'pos':'neg'}">${s.velocityPct>=0?'+':''}${s.velocityPct}%</div>
       <div class="stat-card__label">Velocity</div>
       <div class="stat-card__sub">This week <strong>${s.thisWeek}</strong> vs last <strong>${s.lastWeek}</strong></div>
-    </div>`;
+    </div>
+    ${(() => {
+      const pd = HabitLogic.getPriorityChartData(habit);
+      if(!pd.length) return `
+        <div class="stat-card">
+          <div class="stat-card__accent stat-card__accent--pink">🎯</div>
+          <div class="stat-card__value" style="font-size:1.1rem;color:var(--text-3)">No data</div>
+          <div class="stat-card__label">Priority Focus</div>
+          <div class="stat-card__sub">Long-press a habit to set priority</div>
+        </div>`;
+      const total = pd.length;
+      const done  = pd.filter(p => p.completed).length;
+      const rate  = Math.round((done / total) * 100);
+      const color = rate >= 70 ? 'stat-card__accent--green' : rate >= 40 ? 'stat-card__accent--amber' : 'stat-card__accent--red';
+      return `
+        <div class="stat-card">
+          <div class="stat-card__accent ${color}">🎯</div>
+          <div class="stat-card__value">${done}<span style="font-size:1rem;color:var(--text-3);font-weight:400"> / ${total}</span></div>
+          <div class="stat-card__label">Priority Focus</div>
+          <div class="stat-card__sub">${rate}% follow-through on priority days</div>
+          <div class="mini-bar"><div class="mini-fill ${rate>=70?'mini-fill--green':rate>=40?'mini-fill--amber':'mini-fill--red'}" style="width:${rate}%"></div></div>
+        </div>`;
+    })()}`;
   renderCharts(habit);
 };
 
