@@ -87,17 +87,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;fon
   padding: var(--sp-10) var(--sp-8) var(--sp-4);
   display: flex; flex-direction: column; gap: var(--sp-6);
 }
-.onboarding-steps { position: relative; min-height: 260px; }
+.onboarding-steps { position: relative; }
 .onboarding-step {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center;
+  display: none;
+  flex-direction: column; align-items: center;
   text-align: center; gap: var(--sp-4);
-  opacity: 0; transform: translateX(30px);
-  transition: all .4s cubic-bezier(.34,1.56,.64,1);
-  pointer-events: none;
 }
 .onboarding-step.active {
-  opacity: 1; transform: translateX(0); pointer-events: auto;
+  display: flex;
 }
 .onboarding-emoji {
   font-size: 3rem; line-height: 1;
