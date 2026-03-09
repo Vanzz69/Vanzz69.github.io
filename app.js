@@ -255,13 +255,26 @@ const hideGlobalLoader = () => {
    ONBOARDING
 ═══════════════════════════════════════════════════════════ */
 let obStep = 0;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const OB_MAX = 5;
+
 const initOnboarding = () => {
   const ob = document.getElementById('onboarding');
   ob.classList.remove('hidden');
+
+  // Hide iOS step if not on iOS
+  if(!isIOS()) {
+    const iosStep = document.getElementById('obStepIOS');
+    if(iosStep) iosStep.style.display = 'none';
+  }
+
   updateObStep(0);
 
   document.getElementById('obNextBtn').addEventListener('click', () => {
-    if(obStep < 3) { obStep++; updateObStep(obStep); }
+    let next = obStep + 1;
+    // Skip iOS step if not on iOS
+    if(next === 4 && !isIOS()) next = 5;
+    if(next <= OB_MAX) { obStep = next; updateObStep(obStep); }
     else finishOnboarding();
   });
   document.getElementById('obSkipBtn').addEventListener('click', finishOnboarding);
@@ -270,8 +283,8 @@ const initOnboarding = () => {
 const updateObStep = (step) => {
   document.querySelectorAll('.onboarding-step').forEach(s => s.classList.toggle('active', parseInt(s.dataset.step)===step));
   document.querySelectorAll('.ob-dot').forEach(d => d.classList.toggle('active', parseInt(d.dataset.dot)===step));
-  document.getElementById('obNextBtn').textContent = step === 3 ? "Let's Go 🚀" : 'Next';
-  document.getElementById('obSkipBtn').style.visibility = step === 3 ? 'hidden' : 'visible';
+  document.getElementById('obNextBtn').textContent = step === OB_MAX ? "Let's Go 🚀" : 'Next';
+  document.getElementById('obSkipBtn').style.visibility = step === OB_MAX ? 'hidden' : 'visible';
 };
 
 const finishOnboarding = () => {
@@ -311,14 +324,22 @@ const initAuthEvents = () => {
   document.getElementById('goToLoginFromSignup').addEventListener('click',()=>showScreen('loginScreen'));
   document.getElementById('goToLoginFromForgot').addEventListener('click',()=>showScreen('loginScreen'));
 
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
   const handleGoogle = async (errorId) => {
     const errEl = document.getElementById(errorId);
     errEl.textContent = '';
+    // iOS Safari blocks popups aggressively — warn user before attempting
+    if(isIOS && isSafari){
+      errEl.textContent = 'Google sign-in may not work in Safari. Try using email/password instead, or open in Chrome.';
+      return;
+    }
     try {
       await signInWithGoogle();
     } catch(e) {
       errEl.textContent =
-        e.code === 'auth/popup-blocked'           ? 'Popup blocked — please allow popups for this site.' :
+        e.code === 'auth/popup-blocked'           ? 'Popup blocked — please allow popups for this site or use email sign-in.' :
         e.code === 'auth/cancelled-popup-request' ? '' :
         e.code === 'auth/popup-closed-by-user'    ? '' :
         e.code === 'auth/unauthorized-domain'     ? 'Domain not authorized. Check Firebase settings.' :
@@ -480,7 +501,7 @@ const $=(id)=>document.getElementById(id);
 const esc=(s)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const showModal=(id)=>{$(id).hidden=false;$('modalBackdrop').hidden=false;};
 const hideModal=(id)=>{$(id).hidden=true;$('modalBackdrop').hidden=true;};
-const hideAllModals=()=>{['habitModal','deleteModal','deleteTaskModal','taskHistoryModal','journalEntryModal'].forEach(id=>$(id).hidden=true);$('modalBackdrop').hidden=true;};
+const hideAllModals=()=>{['habitModal','deleteModal','deleteTaskModal','taskHistoryModal','journalEntryModal','donateModal'].forEach(id=>$(id).hidden=true);$('modalBackdrop').hidden=true;};
 
 /* ═══════════════════════════════════════════════════════════
    PRIORITY CONTEXT MENU
@@ -1312,7 +1333,8 @@ const fmt12 = (time24) => {
 ═══════════════════════════════════════════════════════════ */
 const renderTasksView = () => {
   if (state.currentTasksView === 'today') renderTodayTasks();
-  else renderUpcomingTasks();
+  else if (state.currentTasksView === 'upcoming') renderUpcomingTasks();
+  else if (state.currentTasksView === 'someday') renderSomedayTasks();
 };
 
 const renderTodayTasks = () => {
@@ -1408,6 +1430,107 @@ const buildTaskCard = (task, index, pane) => {
   }
 
   return card;
+};
+
+/* ═══════════════════════════════════════════════════════════
+   SOMEDAY TASKS
+═══════════════════════════════════════════════════════════ */
+const renderSomedayTasks = () => {
+  const list = $('somedayTasksList');
+  list.innerHTML = '';
+  const tasks = state.tasks.filter(t => t.type === 'someday');
+  if(!tasks.length){
+    list.style.display = 'none';
+    $('somedayTasksEmpty').style.display = 'flex';
+    return;
+  }
+  list.style.display = '';
+  $('somedayTasksEmpty').style.display = 'none';
+  tasks.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'task-card someday-card';
+    card.innerHTML = `
+      <div class="task-card-main">
+        <span class="task-title">${esc(t.title)}</span>
+        <div class="someday-actions">
+          <button class="someday-move-btn" data-id="${t.id}" title="Move to Today">→ Today</button>
+          <button class="task-delete-btn" data-id="${t.id}" title="Delete">🗑</button>
+        </div>
+      </div>`;
+    card.querySelector('.someday-move-btn').addEventListener('click', async () => {
+      const task = state.tasks.find(t2 => t2.id === t.id);
+      if(!task) return;
+      task.type = 'today';
+      task.date = DateUtils.today();
+      await saveTasks(); renderSomedayTasks();
+    });
+    card.querySelector('.task-delete-btn').addEventListener('click', async () => {
+      state.tasks = state.tasks.filter(t2 => t2.id !== t.id);
+      await saveTasks(); renderSomedayTasks();
+    });
+    list.appendChild(card);
+  });
+};
+
+const addSomedayTask = async () => {
+  const input = $('somedayTitleInput');
+  const title = input.value.trim();
+  if(!title) return;
+  state.tasks.push({ id: genId(), title, type: 'someday', date: null, time: null, completed: false, createdAt: Date.now() });
+  input.value = '';
+  await saveTasks(); renderSomedayTasks();
+};
+
+/* ═══════════════════════════════════════════════════════════
+   DONATION MODAL
+═══════════════════════════════════════════════════════════ */
+const openDonateModal = () => showModal('donateModal');
+
+/* ═══════════════════════════════════════════════════════════
+   PWA INSTALL BANNER
+═══════════════════════════════════════════════════════════ */
+const PWA_BANNER_KEY = 'momentum_pwa_dismissed';
+let deferredInstallPrompt = null;
+
+const initPWABanner = () => {
+  if(localStorage.getItem(PWA_BANNER_KEY)) return;
+
+  const isIOS2 = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  if(isInStandaloneMode) return; // Already installed
+
+  const banner = $('pwaBanner');
+  const sub = $('pwaBannerSub');
+
+  if(isIOS2){
+    // iOS — show manual instructions
+    sub.textContent = 'Tap the Share button ⬆ then "Add to Home Screen"';
+    $('pwaInstallBtn').textContent = 'How?';
+    $('pwaInstallBtn').addEventListener('click', () => {
+      alert('To install Momentum on iPhone:\n\n1. Tap the Share button ⬆ at the bottom of Safari\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add" — done!');
+    });
+    banner.style.display = 'flex';
+  } else {
+    // Android/desktop — wait for beforeinstallprompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      sub.textContent = 'Install for offline access and a better experience';
+      banner.style.display = 'flex';
+      $('pwaInstallBtn').addEventListener('click', async () => {
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if(outcome === 'accepted') banner.style.display = 'none';
+        deferredInstallPrompt = null;
+      });
+    });
+  }
+
+  $('pwaDismissBtn').addEventListener('click', () => {
+    banner.style.display = 'none';
+    localStorage.setItem(PWA_BANNER_KEY, '1');
+  });
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -1620,13 +1743,15 @@ const initAppUI=()=>{
     const db=e.target.closest('.icon-btn-delete');if(db){openDeleteModal(db.dataset.id);return;}
   });
 
-  // Task toggle (Today / Upcoming)
+  // Task toggle (Today / Upcoming / Someday)
   document.querySelectorAll('.tasks-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       state.currentTasksView = btn.dataset.tasksview;
       document.querySelectorAll('.tasks-toggle-btn').forEach(b => b.classList.toggle('active', b === btn));
-      $('todayTasksPane').style.display   = state.currentTasksView === 'today'    ? '' : 'none';
-      $('upcomingTasksPane').style.display = state.currentTasksView === 'upcoming' ? '' : 'none';
+      $('todayTasksPane').style.display    = state.currentTasksView === 'today'    ? '' : 'none';
+      $('upcomingTasksPane').style.display  = state.currentTasksView === 'upcoming' ? '' : 'none';
+      $('somedayTasksPane').style.display   = state.currentTasksView === 'someday'  ? '' : 'none';
+      $('taskHistoryBtn').style.display     = state.currentTasksView === 'someday'  ? 'none' : '';
       renderTasksView();
     });
   });
@@ -1634,8 +1759,26 @@ const initAppUI=()=>{
   // Add task buttons
   $('addTaskBtn').addEventListener('click', addTodayTask);
   $('addScheduledBtn').addEventListener('click', addScheduledTask);
+  $('addSomedayBtn').addEventListener('click', addSomedayTask);
   $('taskTitleInput').addEventListener('keydown', e => { if(e.key==='Enter') addTodayTask(); });
   $('scheduledTitleInput').addEventListener('keydown', e => { if(e.key==='Enter') addScheduledTask(); });
+  $('somedayTitleInput').addEventListener('keydown', e => { if(e.key==='Enter') addSomedayTask(); });
+
+  // Donate modal
+  $('openDonateBtn').addEventListener('click', () => { openDonateModal(); closeSidebar(); });
+  $('donateModalClose').addEventListener('click', () => hideModal('donateModal'));
+  $('copyUpiBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText('vanshnarayantiwari5@okicici').then(() => {
+      $('copyUpiBtn').textContent = 'Copied! ✓';
+      setTimeout(() => $('copyUpiBtn').textContent = 'Copy UPI ID', 2000);
+    }).catch(() => {
+      $('upiIdCopy').select?.();
+      $('copyUpiBtn').textContent = 'Copy manually ↑';
+    });
+  });
+
+  // PWA install banner
+  initPWABanner();
 
   // Set min date for scheduled task to tomorrow
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
