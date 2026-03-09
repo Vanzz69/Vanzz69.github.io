@@ -1767,12 +1767,14 @@ const initAppUI=()=>{
   // Donate modal
   $('openDonateBtn').addEventListener('click', () => { openDonateModal(); closeSidebar(); });
   $('donateModalClose').addEventListener('click', () => hideModal('donateModal'));
+  // Onboarding UPI button → open donate modal
+  const obUpiBtn = document.getElementById('obUpiBtn');
+  if(obUpiBtn) obUpiBtn.addEventListener('click', () => openDonateModal());
   $('copyUpiBtn').addEventListener('click', () => {
     navigator.clipboard.writeText('vanshnarayantiwari5@okicici').then(() => {
       $('copyUpiBtn').textContent = 'Copied! ✓';
-      setTimeout(() => $('copyUpiBtn').textContent = 'Copy UPI ID', 2000);
+      setTimeout(() => $('copyUpiBtn').textContent = 'Copy', 2000);
     }).catch(() => {
-      $('upiIdCopy').select?.();
       $('copyUpiBtn').textContent = 'Copy manually ↑';
     });
   });
