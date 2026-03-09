@@ -256,24 +256,26 @@ const hideGlobalLoader = () => {
 ═══════════════════════════════════════════════════════════ */
 let obStep = 0;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = () => /android/i.test(navigator.userAgent);
+const isMobileDevice = () => isIOS() || isAndroid();
 const OB_MAX = 5;
 
 const initOnboarding = () => {
   const ob = document.getElementById('onboarding');
   ob.classList.remove('hidden');
 
-  // Hide iOS step if not on iOS
-  if(!isIOS()) {
-    const iosStep = document.getElementById('obStepIOS');
-    if(iosStep) iosStep.style.display = 'none';
-  }
+  // Show correct install step, hide the other
+  const iosStep     = document.getElementById('obStepIOS');
+  const androidStep = document.getElementById('obStepAndroid');
+  if(iosStep)     iosStep.style.display     = isIOS()     ? '' : 'none';
+  if(androidStep) androidStep.style.display = isAndroid() ? '' : 'none';
 
   updateObStep(0);
 
   document.getElementById('obNextBtn').addEventListener('click', () => {
     let next = obStep + 1;
-    // Skip iOS step if not on iOS
-    if(next === 4 && !isIOS()) next = 5;
+    // Skip install step entirely on desktop
+    if(next === 4 && !isMobileDevice()) next = 5;
     if(next <= OB_MAX) { obStep = next; updateObStep(obStep); }
     else finishOnboarding();
   });
