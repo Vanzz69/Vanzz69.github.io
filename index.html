@@ -28,8 +28,17 @@
   <!-- ═══════ ONBOARDING ═══════ -->
   <div id="onboarding" class="onboarding hidden">
     <div class="onboarding-card">
-      <div class="onboarding-body">
-        <div class="onboarding-steps">
+      <!-- Dots at top -->
+      <div class="onboarding-dots">
+        <span class="ob-dot active" data-dot="0"></span>
+        <span class="ob-dot" data-dot="1"></span>
+        <span class="ob-dot" data-dot="2"></span>
+        <span class="ob-dot" data-dot="3"></span>
+        <span class="ob-dot" data-dot="4"></span>
+        <span class="ob-dot" data-dot="5"></span>
+      </div>
+      <!-- Scrollable content -->
+      <div class="onboarding-steps">
         <div class="onboarding-step active" data-step="0">
           <div class="onboarding-emoji">◈</div>
           <h2>Welcome to Momentum</h2>
@@ -43,7 +52,7 @@
         <div class="onboarding-step" data-step="2">
           <div class="onboarding-emoji">◎</div>
           <h2>See Your Progress</h2>
-          <p>The dashboard shows heatmaps, velocity trends, milestone badges, and strength scores — so you always know where you stand.</p>
+          <p>The dashboard shows velocity trends, milestone badges, and strength scores — so you always know where you stand.</p>
         </div>
         <div class="onboarding-step" data-step="3">
           <div class="onboarding-emoji">🏆</div>
@@ -77,25 +86,13 @@
           <h2>Momentum is Free</h2>
           <p>And always will be. But Firebase — the service that syncs your data across devices — has real costs. If Momentum helps you, a small donation keeps it running.</p>
           <div class="ob-donate-btns">
-            <button class="ob-donate-btn ob-donate-upi" id="obUpiBtn">
-              Donate via UPI
-            </button>
-            <a class="ob-donate-btn ob-donate-kofi" href="https://ko-fi.com/vanzz69" target="_blank" rel="noopener noreferrer">
-              ☕ Donate via Ko-fi
-            </a>
+            <button class="ob-donate-btn ob-donate-upi" id="obUpiBtn">Donate via UPI</button>
+            <a class="ob-donate-btn ob-donate-kofi" href="https://ko-fi.com/vanzz69" target="_blank" rel="noopener noreferrer">☕ Donate via Ko-fi</a>
           </div>
           <p class="ob-donate-skip">No pressure at all — enjoy the app either way 🙏</p>
         </div>
       </div>
-      <div class="onboarding-dots">
-        <span class="ob-dot active" data-dot="0"></span>
-        <span class="ob-dot" data-dot="1"></span>
-        <span class="ob-dot" data-dot="2"></span>
-        <span class="ob-dot" data-dot="3"></span>
-        <span class="ob-dot" data-dot="4"></span>
-        <span class="ob-dot" data-dot="5"></span>
-      </div>
-      </div> <!-- end onboarding-body -->
+      <!-- Inline footer buttons — no sticky bar -->
       <div class="onboarding-footer">
         <button class="btn-ghost" id="obSkipBtn">Skip</button>
         <button class="btn-primary" id="obNextBtn">Next</button>
